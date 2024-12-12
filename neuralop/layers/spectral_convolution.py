@@ -1,19 +1,21 @@
-from typing import List, Optional, Tuple, Union
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
+import paddle
+import tensorly as tl
+from paddle import nn
+from tensorly.plugins import use_opt_einsum
+
+from ..tltorch.factorized_tensors.core import FactorizedTensor
 from ..utils import validate_scaling_factor
 
-import torch
-from torch import nn
-
-import tensorly as tl
-from tensorly.plugins import use_opt_einsum
-from tltorch.factorized_tensors.core import FactorizedTensor
-
-from .einsum_utils import einsum_complexhalf
+# from .einsum_utils import einsum_complexhalf
 from .base_spectral_conv import BaseSpectralConv
 from .resample import resample
 
-tl.set_backend("pytorch")
+tl.set_backend("paddle")
 use_opt_einsum("optimal")
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -36,14 +38,17 @@ def _contract_dense(x, weight, separable=False):
 
     eq = f'{"".join(x_syms)},{"".join(weight_syms)}->{"".join(out_syms)}'
 
-    if not torch.is_tensor(weight):
+    if not paddle.is_tensor(weight):
         weight = weight.to_tensor()
 
-    if x.dtype == torch.complex32:
-        # if x is half precision, run a specialized einsum
-        return einsum_complexhalf(eq, x, weight)
-    else:
-        return tl.einsum(eq, x, weight)
+    # [TODO] Complex32 is not supported in Paddle.
+    # if x.dtype == torch.complex32:
+    #     # if x is half precision, run a specialized einsum
+    #     return einsum_complexhalf(eq, x, weight)
+    # else:
+    #     return tl.einsum(eq, x, weight)
+
+    return tl.einsum(eq, x, weight)
 
 
 def _contract_dense_separable(x, weight, separable=True):
@@ -67,10 +72,13 @@ def _contract_cp(x, cp_weight, separable=False):
     factor_syms += [xs + rank_sym for xs in x_syms[2:]]  # x, y, ...
     eq = f'{x_syms},{rank_sym},{",".join(factor_syms)}->{"".join(out_syms)}'
 
-    if x.dtype == torch.complex32:
-        return einsum_complexhalf(eq, x, cp_weight.weights, *cp_weight.factors)
-    else:
-        return tl.einsum(eq, x, cp_weight.weights, *cp_weight.factors)
+    # [TODO] Complex32 is not supported in Paddle.
+    # if x.dtype == torch.complex32:
+    #     return einsum_complexhalf(eq, x, cp_weight.weights, *cp_weight.factors)
+    # else:
+    #     return tl.einsum(eq, x, cp_weight.weights, *cp_weight.factors)
+
+    return tl.einsum(eq, x, cp_weight.weights, *cp_weight.factors)
 
 
 def _contract_tucker(x, tucker_weight, separable=False):
@@ -97,10 +105,13 @@ def _contract_tucker(x, tucker_weight, separable=False):
 
     eq = f'{x_syms},{core_syms},{",".join(factor_syms)}->{"".join(out_syms)}'
 
-    if x.dtype == torch.complex32:
-        return einsum_complexhalf(eq, x, tucker_weight.core, *tucker_weight.factors)
-    else:
-        return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
+    # [TODO] Complex32 is not supported in Paddle.
+    # if x.dtype == torch.complex32:
+    #     return einsum_complexhalf(eq, x, tucker_weight.core, *tucker_weight.factors)
+    # else:
+    #     return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
+
+    return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
 
 
 def _contract_tt(x, tt_weight, separable=False):
@@ -126,10 +137,13 @@ def _contract_tt(x, tt_weight, separable=False):
         + "".join(out_syms)
     )
 
-    if x.dtype == torch.complex32:
-        return einsum_complexhalf(eq, x, *tt_weight.factors)
-    else:
-        return tl.einsum(eq, x, *tt_weight.factors)
+    # [TODO] Complex32 is not supported in Paddle.
+    # if x.dtype == torch.complex32:
+    #     return einsum_complexhalf(eq, x, *tt_weight.factors)
+    # else:
+    #     return tl.einsum(eq, x, *tt_weight.factors)
+
+    return tl.einsum(eq, x, *tt_weight.factors)
 
 
 def get_contract_fun(weight, implementation="reconstructed", separable=False):
@@ -156,7 +170,7 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
         else:
             return _contract_dense
     elif implementation == "factorized":
-        if torch.is_tensor(weight):
+        if paddle.is_tensor(weight):
             return _contract_dense
         elif isinstance(weight, FactorizedTensor):
             if weight.name.lower().endswith("dense"):
@@ -193,19 +207,19 @@ class SpectralConv(BaseSpectralConv):
         Number of output channels
     max_n_modes : None or int tuple, default is None
         Number of modes to use for contraction in Fourier domain during training.
- 
+
         .. warning::
-            
-            We take care of the redundancy in the Fourier modes, therefore, for an input 
+
+            We take care of the redundancy in the Fourier modes, therefore, for an input
             of size I_1, ..., I_N, please provide modes M_K that are I_1 < M_K <= I_N
-            We will automatically keep the right amount of modes: specifically, for the 
-            last mode only, if you specify M_N modes we will use M_N // 2 + 1 modes 
+            We will automatically keep the right amount of modes: specifically, for the
+            last mode only, if you specify M_N modes we will use M_N // 2 + 1 modes
             as the real FFT is redundant along that last dimension.
 
-            
+
         .. note::
 
-            Provided modes should be even integers. odd numbers will be rounded to the closest even number.  
+            Provided modes should be even integers. odd numbers will be rounded to the closest even number.
 
         This can be updated dynamically during training.
 
@@ -296,7 +310,7 @@ class SpectralConv(BaseSpectralConv):
         ] = validate_scaling_factor(output_scaling_factor, self.order, n_layers)
 
         if init_std == "auto":
-            init_std = (2 / (in_channels + out_channels))**0.5
+            init_std = (2 / (in_channels + out_channels)) ** 0.5
         else:
             init_std = init_std
 
@@ -337,7 +351,7 @@ class SpectralConv(BaseSpectralConv):
             )
             self.weight.normal_(0, init_std)
         else:
-            self.weight = nn.ModuleList(
+            self.weight = nn.LayerList(
                 [
                     FactorizedTensor.new(
                         weight_shape,
@@ -356,9 +370,13 @@ class SpectralConv(BaseSpectralConv):
         )
 
         if bias:
-            self.bias = nn.Parameter(
+            # https://github.com/PaddlePaddle/docs/blob/develop/docs/guides/model_convert/convert_from_pytorch/api_difference/nn/torch.nn.Parameter.md
+            # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/model_convert/convert_from_pytorch/api_difference/nn/torch.nn.Parameter.html
+            self.bias = paddle.base.framework.EagerParamBase.from_tensor(
                 init_std
-                * torch.randn(*((n_layers, self.out_channels) + (1,) * self.order))
+                * paddle.randn(
+                    (tuple([n_layers, self.out_channels]) + (1,) * self.order)
+                )
             )
         else:
             self.bias = None
@@ -390,14 +408,14 @@ class SpectralConv(BaseSpectralConv):
                 list(range(2, x.ndim)),
                 output_shape=out_shape,
             )
-    
+
     @property
     def n_modes(self):
         return self._n_modes
-    
+
     @n_modes.setter
     def n_modes(self, n_modes):
-        if isinstance(n_modes, int): # Should happen for 1D FNO only
+        if isinstance(n_modes, int):  # Should happen for 1D FNO only
             n_modes = [n_modes]
         else:
             n_modes = list(n_modes)
@@ -406,14 +424,12 @@ class SpectralConv(BaseSpectralConv):
         n_modes[-1] = n_modes[-1] // 2 + 1
         self._n_modes = n_modes
 
-    def forward(
-        self, x: torch.Tensor, indices=0, output_shape: Optional[Tuple[int]] = None
-    ):
+    def forward(self, x, indices=0, output_shape: Optional[Tuple[int]] = None):
         """Generic forward pass for the Factorized Spectral Conv
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : paddle.Tensor
             input activation of size (batch_size, channels, d1, ..., dN)
         indices : int, default is 0
             if joint_factorization, index of the layers for n_layers > 1
@@ -431,42 +447,75 @@ class SpectralConv(BaseSpectralConv):
         if self.fno_block_precision == "half":
             x = x.half()
 
-        x = torch.fft.rfftn(x, norm=self.fft_norm, dim=fft_dims)
+        x = paddle.fft.rfftn(x, norm=self.fft_norm, axes=fft_dims)
         if self.order > 1:
-            x = torch.fft.fftshift(x, dim=fft_dims[:-1])
+            x = paddle.fft.fftshift(x, axes=fft_dims[:-1])
 
         if self.fno_block_precision == "mixed":
             # if 'mixed', the above fft runs in full precision, but the
             # following operations run at half precision
-            x = x.chalf()
+            # [TODO] Complex32 is not supported in Paddle.
+            # x = x.chalf()
+            raise NotImplementedError("Complex32 is not supported in Paddle.")
 
         if self.fno_block_precision in ["half", "mixed"]:
-            out_dtype = torch.chalf
+            # [TODO] Complex32 is not supported in Paddle.
+            # out_dtype = torch.chalf
+            raise NotImplementedError("Complex32 is not supported in Paddle.")
         else:
-            out_dtype = torch.cfloat
-        out_fft = torch.zeros([batchsize, self.out_channels, *fft_size],
-                              device=x.device, dtype=out_dtype)
-        starts = [(max_modes - min(size, n_mode)) for (size, n_mode, max_modes) in zip(fft_size, self.n_modes, self.max_n_modes)]
-        slices_w =  [slice(None), slice(None)] # Batch_size, channels
-        slices_w += [slice(start//2, -start//2) if start else slice(start, None) for start in starts[:-1]]
-        slices_w += [slice(None, -starts[-1]) if starts[-1] else slice(None)] # The last mode already has redundant half removed
+            out_dtype = paddle.complex64
+        out_fft = paddle.zeros(
+            [batchsize, self.out_channels, *fft_size], dtype=out_dtype
+        )
+        starts = [
+            (max_modes - min(size, n_mode))
+            for (size, n_mode, max_modes) in zip(
+                fft_size, self.n_modes, self.max_n_modes
+            )
+        ]
+        slices_w = [slice(None), slice(None)]  # Batch_size, channels
+        slices_w += [
+            slice(start // 2, -start // 2) if start else slice(start, None)
+            for start in starts[:-1]
+        ]
+        slices_w += [
+            slice(None, -starts[-1]) if starts[-1] else slice(None)
+        ]  # The last mode already has redundant half removed
+
         weight = self._get_weight(indices)[slices_w]
 
-        starts = [(size - min(size, n_mode)) for (size, n_mode) in zip(list(x.shape[2:]), list(weight.shape[2:]))]
-        slices_x =  [slice(None), slice(None)] # Batch_size, channels
-        slices_x += [slice(start//2, -start//2) if start else slice(start, None) for start in starts[:-1]]
-        slices_x += [slice(None, -starts[-1]) if starts[-1] else slice(None)] # The last mode already has redundant half removed
-        out_fft[slices_x] = self._contract(x[slices_x], weight, separable=False)
+        starts = [
+            (size - min(size, n_mode))
+            for (size, n_mode) in zip(list(x.shape[2:]), list(weight.shape[2:]))
+        ]
+        slices_x = [slice(None), slice(None)]  # Batch_size, channels
+        slices_x += [
+            slice(start // 2, -start // 2) if start else slice(start, None)
+            for start in starts[:-1]
+        ]
+        slices_x += [
+            slice(None, -starts[-1]) if starts[-1] else slice(None)
+        ]  # The last mode already has redundant half removed
+
+        # paddle must use tuple
+        slices_x = tuple(slices_x)
+        x_temp = x[slices_x]
+        out_fft[slices_x] = self._contract(x_temp, weight, separable=False)
 
         if self.output_scaling_factor is not None and output_shape is None:
-            mode_sizes = tuple([round(s * r) for (s, r) in zip(mode_sizes, self.output_scaling_factor[indices])])
+            mode_sizes = tuple(
+                [
+                    round(s * r)
+                    for (s, r) in zip(mode_sizes, self.output_scaling_factor[indices])
+                ]
+            )
 
         if output_shape is not None:
             mode_sizes = output_shape
 
         if self.order > 1:
-            out_fft = torch.fft.fftshift(out_fft, dim=fft_dims[:-1])
-        x = torch.fft.irfftn(out_fft, s=mode_sizes, dim=fft_dims, norm=self.fft_norm)
+            out_fft = paddle.fft.fftshift(out_fft, axes=fft_dims[:-1])
+        x = paddle.fft.irfftn(out_fft, s=mode_sizes, axes=fft_dims, norm=self.fft_norm)
 
         if self.bias is not None:
             x = x + self.bias[indices, ...]
@@ -479,7 +528,9 @@ class SpectralConv(BaseSpectralConv):
         The parametrization of sub-convolutional layers is shared with the main one.
         """
         if self.n_layers == 1:
-            Warning("A single convolution is parametrized, directly use the main class.")
+            Warning(
+                "A single convolution is parametrized, directly use the main class."
+            )
 
         return SubConv(self, indices)
 
@@ -487,7 +538,7 @@ class SpectralConv(BaseSpectralConv):
         return self.get_conv(indices)
 
 
-class SubConv(nn.Module):
+class SubConv(nn.Layer):
     """Class representing one of the convolutions from the mother joint
     factorized convolution.
 
@@ -513,6 +564,7 @@ class SubConv(nn.Module):
     def weight(self):
         return self.main_conv.get_weight(indices=self.indices)
 
+
 class SpectralConv1d(SpectralConv):
     """1D Spectral Conv
 
@@ -523,17 +575,17 @@ class SpectralConv1d(SpectralConv):
     def forward(self, x, indices=0):
         batchsize, channels, width = x.shape
 
-        x = torch.fft.rfft(x, norm=self.fft_norm)
+        x = paddle.fft.rfft(x, norm=self.fft_norm)
 
-        out_fft = torch.zeros(
+        out_fft = paddle.zeros(
             [batchsize, self.out_channels, width // 2 + 1],
             device=x.device,
-            dtype=torch.cfloat,
+            dtype=paddle.cfloat,
         )
         slices = (
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
-            slice(None, self.n_modes[0]), # :half_n_modes[0]]
+            slice(None, self.n_modes[0]),  # :half_n_modes[0]]
         )
         out_fft[slices] = self._contract(
             x[slices], self._get_weight(indices)[slices], separable=self.separable
@@ -542,7 +594,7 @@ class SpectralConv1d(SpectralConv):
         if self.output_scaling_factor is not None:
             width = round(width * self.output_scaling_factor[0])
 
-        x = torch.fft.irfft(out_fft, n=width, norm=self.fft_norm)
+        x = paddle.fft.irfft(out_fft, n=width, norm=self.fft_norm)
 
         if self.bias is not None:
             x = x + self.bias[indices, ...]
@@ -560,11 +612,11 @@ class SpectralConv2d(SpectralConv):
     def forward(self, x, indices=0):
         batchsize, channels, height, width = x.shape
 
-        x = torch.fft.rfft2(x.float(), norm=self.fft_norm, dim=(-2, -1))
+        x = paddle.fft.rfft2(x.float(), norm=self.fft_norm, dim=(-2, -1))
 
         # The output will be of size (batch_size, self.out_channels,
         # x.size(-2), x.size(-1)//2 + 1)
-        out_fft = torch.zeros(
+        out_fft = paddle.zeros(
             [batchsize, self.out_channels, height, width // 2 + 1],
             dtype=x.dtype,
             device=x.device,
@@ -574,7 +626,7 @@ class SpectralConv2d(SpectralConv):
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
             slice(self.n_modes[0] // 2),  # :half_n_modes[0],
-            slice(self.n_modes[1]),  #      :half_n_modes[1]]
+            slice(self.n_modes[1]),  # :half_n_modes[1]]
         )
         slices1 = (
             slice(None),  # Equivalent to:        [:,
@@ -582,7 +634,6 @@ class SpectralConv2d(SpectralConv):
             slice(-self.n_modes[0] // 2, None),  # -half_n_modes[0]:,
             slice(self.n_modes[1]),  # ......      :half_n_modes[1]]
         )
-        print(f'2D: {x[slices0].shape=}, {self._get_weight(indices)[slices0].shape=}, {self._get_weight(indices).shape=}')
 
         """Upper block (truncate high frequencies)."""
         out_fft[slices0] = self._contract(
@@ -598,7 +649,7 @@ class SpectralConv2d(SpectralConv):
             width = round(width * self.output_scaling_factor[indices][0])
             height = round(height * self.output_scaling_factor[indices][1])
 
-        x = torch.fft.irfft2(
+        x = paddle.fft.irfft2(
             out_fft, s=(height, width), dim=(-2, -1), norm=self.fft_norm
         )
 
@@ -618,12 +669,12 @@ class SpectralConv3d(SpectralConv):
     def forward(self, x, indices=0):
         batchsize, channels, height, width, depth = x.shape
 
-        x = torch.fft.rfftn(x.float(), norm=self.fft_norm, dim=[-3, -2, -1])
+        x = paddle.fft.rfftn(x.float(), norm=self.fft_norm, dim=[-3, -2, -1])
 
-        out_fft = torch.zeros(
+        out_fft = paddle.zeros(
             [batchsize, self.out_channels, height, width, depth // 2 + 1],
             device=x.device,
-            dtype=torch.cfloat,
+            dtype=paddle.complex64,
         )
 
         slices0 = (
@@ -681,7 +732,9 @@ class SpectralConv3d(SpectralConv):
             height = round(height * self.output_scaling_factor[1])
             depth = round(depth * self.output_scaling_factor[2])
 
-        x = torch.fft.irfftn(out_fft, s=(height, width, depth), dim=[-3, -2, -1], norm=self.fft_norm)
+        x = paddle.fft.irfftn(
+            out_fft, s=(height, width, depth), dim=[-3, -2, -1], norm=self.fft_norm
+        )
 
         if self.bias is not None:
             x = x + self.bias[indices, ...]

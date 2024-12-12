@@ -1,5 +1,5 @@
-import torch
-from torch import nn
+import paddle
+from paddle import nn
 
 
 def skip_connection(
@@ -35,11 +35,11 @@ def skip_connection(
             n_dim=n_dim,
         )
     elif skip_type.lower() == "linear":
-        return getattr(nn, f"Conv{n_dim}d")(
+        return getattr(nn, f"Conv{n_dim}D")(
             in_channels=in_features,
             out_channels=out_features,
             kernel_size=1,
-            bias=bias,
+            bias_attr=bias,
         )
     elif skip_type.lower() == "identity":
         return nn.Identity()
@@ -50,7 +50,7 @@ def skip_connection(
         )
 
 
-class SoftGating(nn.Module):
+class SoftGating(nn.Layer):
     """Applies soft-gating by weighting the channels of the given input
 
     Given an input x of size `(batch-size, channels, height, width)`,
@@ -77,9 +77,13 @@ class SoftGating(nn.Module):
             )
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = nn.Parameter(torch.ones(1, self.in_features, *(1,) * n_dim))
+        self.weight = paddle.base.framework.EagerParamBase.from_tensor(
+            paddle.ones([1, self.in_features, *(1,) * n_dim])
+        )
         if bias:
-            self.bias = nn.Parameter(torch.ones(1, self.in_features, *(1,) * n_dim))
+            self.bias = paddle.base.framework.EagerParamBase.from_tensor(
+                paddle.ones([1, self.in_features, *(1,) * n_dim])
+            )
         else:
             self.bias = None
 

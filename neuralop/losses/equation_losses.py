@@ -1,5 +1,5 @@
-import torch
-import torch.nn.functional as F
+import paddle
+import paddle.nn.functional as F
 
 from .data_losses import central_diff_2d
 
@@ -34,7 +34,7 @@ class BurgersEqnLoss(object):
 
         # d^2u/dxx
         dudxx = (
-            torch.roll(u, -1, dims=-1) - 2 * u + torch.roll(u, 1, dims=-1)
+            paddle.roll(u, -1, axis=-1) - 2 * u + paddle.roll(u, 1, axis=-1)
         ) / dx**2
         # fix boundary
         dudxx[..., 0] = (u[..., 2] - 2 * u[..., 1] + u[..., 0]) / dx**2

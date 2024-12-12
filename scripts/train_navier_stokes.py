@@ -1,17 +1,21 @@
 import sys
 
-from configmypy import ConfigPipeline, YamlConfig, ArgparseConfig
-import torch
-from torch.nn.parallel import DistributedDataParallel as DDP
+import paddle
 import wandb
-
-from neuralop import H1Loss, LpLoss, Trainer, get_model
-from neuralop.datasets.navier_stokes import load_navier_stokes_pt
+from configmypy import ArgparseConfig
+from configmypy import ConfigPipeline
+from configmypy import YamlConfig
+from neuralop import H1Loss
+from neuralop import LpLoss
+from neuralop import Trainer
+from neuralop import get_model
 from neuralop.datasets.data_transforms import MGPatchingDataProcessor
-from neuralop.training import setup, BasicLoggerCallback
-from neuralop.utils import get_wandb_api_key, count_model_params
-
-
+from neuralop.datasets.navier_stokes import load_navier_stokes_pt
+from neuralop.training import BasicLoggerCallback
+from neuralop.training import setup
+from neuralop.utils import count_model_params
+from neuralop.utils import get_wandb_api_key
+from paddle import DataParallel as DDP
 
 # Read the configuration
 config_name = "default"
@@ -89,12 +93,14 @@ train_loader, test_loaders, data_processor = load_navier_stokes_pt(
 
 # convert dataprocessor to an MGPatchingDataprocessor if patching levels > 0
 if config.patching.levels > 0:
-    data_processor = MGPatchingDataProcessor(in_normalizer=data_processor.in_normalizer,
-                                             out_normalizer=data_processor.out_normalizer,
-                                             positional_encoding=data_processor.positional_encoding,
-                                             padding_fraction=config.patching.padding,
-                                             stitching=config.patching.stitching,
-                                             levels=config.patching.levels)
+    data_processor = MGPatchingDataProcessor(
+        in_normalizer=data_processor.in_normalizer,
+        out_normalizer=data_processor.out_normalizer,
+        positional_encoding=data_processor.positional_encoding,
+        padding_fraction=config.patching.padding,
+        stitching=config.patching.stitching,
+        levels=config.patching.levels,
+    )
 
 data_processor = data_processor.to(device)
 model = get_model(config)
@@ -107,30 +113,31 @@ if config.distributed.use_distributed:
     )
 
 # Create the optimizer
-optimizer = torch.optim.Adam(
-    model.parameters(),
-    lr=config.opt.learning_rate,
-    weight_decay=config.opt.weight_decay,
-)
-
 if config.opt.scheduler == "ReduceLROnPlateau":
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
+    scheduler = paddle.optimizer.lr.ReduceOnPlateau(
+        learning_rate=config.opt.learning_rate,
         factor=config.opt.gamma,
         patience=config.opt.scheduler_patience,
         mode="min",
     )
 elif config.opt.scheduler == "CosineAnnealingLR":
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config.opt.scheduler_T_max
+    scheduler = paddle.optimizer.lr.CosineAnnealingDecay(
+        learning_rate=config.opt.learning_rate, T_max=config.opt.scheduler_T_max
     )
 elif config.opt.scheduler == "StepLR":
-    scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=config.opt.step_size, gamma=config.opt.gamma
+    scheduler = paddle.optimizer.lr.StepDecay(
+        learning_rate=config.opt.learning_rate,
+        step_size=config.opt.step_size,
+        gamma=config.opt.gamma,
     )
 else:
     raise ValueError(f"Got scheduler={config.opt.scheduler}")
 
+optimizer = paddle.optimizer.Adam(
+    parameters=model.parameters(),
+    learning_rate=scheduler,
+    weight_decay=config.opt.weight_decay,
+)
 
 # Creating the losses
 l2loss = LpLoss(d=2, p=2)
@@ -141,7 +148,7 @@ elif config.opt.training_loss == "h1":
     train_loss = h1loss
 else:
     raise ValueError(
-        f'Got training_loss={config.opt.training_loss} '
+        f"Got training_loss={config.opt.training_loss} "
         f'but expected one of ["l2", "h1"]'
     )
 eval_losses = {"h1": h1loss, "l2": l2loss}
@@ -153,14 +160,12 @@ if config.verbose:
     print("\n### LOSSES ###")
     print(f"\n * Train: {train_loss}")
     print(f"\n * Test: {eval_losses}")
-    print(f"\n### Beginning Training...\n")
+    print("\n### Beginning Training...\n")
     sys.stdout.flush()
 
 # only perform MG patching if config patching levels > 0
 
-callbacks = [
-    BasicLoggerCallback(wandb_init_args)
-]
+callbacks = [BasicLoggerCallback(wandb_init_args)]
 
 
 trainer = Trainer(
@@ -174,7 +179,7 @@ trainer = Trainer(
     log_output=config.wandb.log_output,
     use_distributed=config.distributed.use_distributed,
     verbose=config.verbose,
-    wandb_log = config.wandb.log
+    wandb_log=config.wandb.log,
 )
 
 # Log parameter count

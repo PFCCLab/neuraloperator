@@ -1,6 +1,6 @@
 import h5py
-import torch
-from torch.utils.data import Dataset
+import paddle
+from paddle.io import Dataset
 
 
 class H5pyDataset(Dataset):
@@ -48,7 +48,7 @@ class H5pyDataset(Dataset):
         return self.n_samples
 
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
+        if paddle.is_tensor(idx):
             idx = idx.tolist()
         if isinstance(idx, int):
             assert (
@@ -56,16 +56,16 @@ class H5pyDataset(Dataset):
             ), f"Trying to access sample {idx} of dataset with {self.n_samples} samples"
         else:
             for i in idx:
-                assert (
-                    i < self.n_samples
-                ), f"Trying to access sample {i} " \
-                   f"of dataset with {self.n_samples} samples"
+                assert i < self.n_samples, (
+                    f"Trying to access sample {i} "
+                    f"of dataset with {self.n_samples} samples"
+                )
 
         x = self.data["x"][idx, :: self.subsample_step, :: self.subsample_step]
         y = self.data["y"][idx, :: self.subsample_step, :: self.subsample_step]
 
-        x = torch.tensor(x, dtype=torch.float32)
-        y = torch.tensor(y, dtype=torch.float32)
+        x = paddle.tensor(x, dtype=paddle.float32)
+        y = paddle.tensor(y, dtype=paddle.float32)
 
         if self.transform_x:
             x = self.transform_x(x)

@@ -1,15 +1,16 @@
-import torch.nn as nn
-import torch.nn.functional as F
-import torch
-from ..layers.mlp import MLP
-from ..layers.spectral_convolution import SpectralConv
-from ..layers.skip_connections import skip_connection
-from ..layers.padding import DomainPadding
+import paddle
+import paddle.nn as nn
+import paddle.nn.functional as F
+
 from ..layers.fno_block import FNOBlocks
+from ..layers.mlp import MLP
+from ..layers.padding import DomainPadding
 from ..layers.resample import resample
+from ..layers.skip_connections import skip_connection
+from ..layers.spectral_convolution import SpectralConv
 
 
-class UNO(nn.Module):
+class UNO(nn.Layer):
     """U-Shaped Neural Operator [1]_
 
     Parameters
@@ -174,7 +175,7 @@ class UNO(nn.Module):
             for i in range(
                 0,
                 n_layers // 2,
-            ):  
+            ):
                 # example, if n_layers = 5, then 4:0, 3:1
                 self.horizontal_skips_map[n_layers - i - 1] = i
         # self.uno_scalings may be a 1d list specifying uniform scaling factor at each layer
@@ -221,8 +222,8 @@ class UNO(nn.Module):
             n_layers=2,
             n_dim=self.n_dim,
         )
-        self.fno_blocks = nn.ModuleList([])
-        self.horizontal_skips = torch.nn.ModuleDict({})
+        self.fno_blocks = nn.LayerList([])
+        self.horizontal_skips = paddle.nn.LayerDict({})
         prev_out = self.hidden_channels
 
         for i in range(self.n_layers):
@@ -291,7 +292,7 @@ class UNO(nn.Module):
         skip_outputs = {}
         cur_output = None
         for layer_idx in range(self.n_layers):
-            
+
             if layer_idx in self.horizontal_skips_map.keys():
                 skip_val = skip_outputs[self.horizontal_skips_map[layer_idx]]
                 output_scaling_factors = [
@@ -301,7 +302,7 @@ class UNO(nn.Module):
                 t = resample(
                     skip_val, output_scaling_factors, list(range(-self.n_dim, 0))
                 )
-                x = torch.cat([x, t], dim=1)
+                x = paddle.concat([x, t], axis=1)
 
             if layer_idx == self.n_layers - 1:
                 cur_output = output_shape
@@ -310,10 +311,8 @@ class UNO(nn.Module):
             if layer_idx in self.horizontal_skips_map.values():
                 skip_outputs[layer_idx] = self.horizontal_skips[str(layer_idx)](x)
 
-
         if self.domain_padding is not None:
             x = self.domain_padding.unpad(x)
-        
 
         x = self.projection(x)
         return x

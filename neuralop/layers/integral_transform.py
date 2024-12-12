@@ -1,11 +1,12 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
+import paddle
+import paddle.nn.functional as F
+from paddle import nn
 
 from .mlp import MLPLinear
 from .segment_csr import segment_csr
 
-class IntegralTransform(nn.Module):
+
+class IntegralTransform(nn.Layer):
     """Integral Kernel Transform (GNO)
     Computes one of the following:
         (a) \int_{A(x)} k(x, y) dy
@@ -81,7 +82,7 @@ class IntegralTransform(nn.Module):
             self.mlp = mlp
 
     """"
-    
+
 
     Assumes x=y if not specified
     Integral is taken w.r.t. the neighbors
@@ -145,14 +146,14 @@ class IntegralTransform(nn.Module):
             neighbors["neighbors_row_splits"][1:]
             - neighbors["neighbors_row_splits"][:-1]
         )
-        self_features = torch.repeat_interleave(x, num_reps, dim=0)
+        self_features = paddle.repeat_interleave(x, num_reps, axis=0)
 
-        agg_features = torch.cat([rep_features, self_features], dim=1)
+        agg_features = paddle.concat([rep_features, self_features], axis=1)
         if f_y is not None and (
             self.transform_type == "nonlinear_kernelonly"
             or self.transform_type == "nonlinear"
         ):
-            agg_features = torch.cat([agg_features, in_features], dim=1)
+            agg_features = paddle.concat([agg_features, in_features], axis=1)
 
         rep_features = self.mlp(agg_features)
 

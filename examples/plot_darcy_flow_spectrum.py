@@ -11,6 +11,9 @@ Spectral analysis is useful because it allows researchers to study the distribut
 
 """
 
+import matplotlib
+import matplotlib.pyplot as plt
+
 # Original Author: Zongyi Li
 # Modified by: Robert Joseph George
 # %%
@@ -18,23 +21,21 @@ Spectral analysis is useful because it allows researchers to study the distribut
 # ------------------
 # We first import our `neuralop` library and required dependencies.
 import numpy as np
-import torch
-import matplotlib
-import matplotlib.pyplot as plt
-from neuralop.utils import spectrum_2d
+import paddle
 from neuralop.datasets import load_darcy_flow_small
+from neuralop.utils import spectrum_2d
 
-font = {'size'   : 28}
-matplotlib.rc('font', **font)
+font = {"size": 28}
+matplotlib.rc("font", **font)
 
-torch.manual_seed(0)
+paddle.seed(0)
 np.random.seed(0)
 
 # %%
 # Define some variables
-T = 500 # number of time steps
+T = 500  # number of time steps
 samples = 50
-s = 16 # resolution of the dataset
+s = 16  # resolution of the dataset
 
 # additional paramaters for the dataset
 Re = 5000
@@ -45,18 +46,25 @@ dataset_name = "Darcy Flow"
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
-        n_train=50, batch_size=50, 
-        test_resolutions=[16, 32], n_tests=[50],
-        test_batch_sizes=[32], positional_encoding=False, 
-        encode_output=False
+    n_train=50,
+    batch_size=50,
+    test_resolutions=[16, 32],
+    n_tests=[50],
+    test_batch_sizes=[32],
+    positional_encoding=False,
+    encode_output=False,
 )
 
 # This is highly depending on your dataset and its structure ['x', 'y'] (In Darcy flow)
-print("Original dataset shape", train_loader.dataset[:samples]['x'].shape) # check the shape
+print(
+    "Original dataset shape", train_loader.dataset[:samples]["x"].shape
+)  # check the shape
 
 # It is important to note that we want the last two dimensions to represent the spatial dimensions
 # So in some cases one might have to permute the dataset after squeezing the initial dimensions as well
-dataset_pred = train_loader.dataset[:samples]['x'].squeeze() # squeeze the dataset to remove the batch dimension or other dimensions
+dataset_pred = train_loader.dataset[:samples][
+    "x"
+].squeeze()  # squeeze the dataset to remove the batch dimension or other dimensions
 
 # Shape of the dataset
 shape = dataset_pred.shape
@@ -74,42 +82,44 @@ gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 
 grid = torch.cat((gridx, gridy, gridz), dim=-1)
 """
 batchsize, size_x, size_y = 1, shape[1], shape[2]
-gridx = torch.tensor(np.linspace(-1, 1, size_x), dtype=torch.float)
-gridx = gridx.reshape(1, size_x, 1).repeat([batchsize, 1, size_y])
-gridy = torch.tensor(np.linspace(-1, 1, size_y), dtype=torch.float)
-gridy = gridy.reshape(1, 1, size_y).repeat([batchsize, size_x, 1])
-grid = torch.cat((gridx, gridy), dim=-1)
+gridx = paddle.to_tensor(np.linspace(-1, 1, size_x), dtype=paddle.float32)
+gridx = gridx.reshape([1, size_x, 1]).tile([batchsize, 1, size_y])
+gridy = paddle.to_tensor(np.linspace(-1, 1, size_y), dtype=paddle.float32)
+gridy = gridy.reshape([1, 1, size_y]).tile([batchsize, size_x, 1])
+grid = paddle.concat((gridx, gridy), axis=-1)
 
 # %%
 # ##############################################################
-### FFT plot
+# ## FFT plot
 ##############################################################
 
 # Generate the spectrum of the dataset
 # Again only the last two dimensions have to be resolution and the first dimension is the reshaped product of all the other dimensions
-truth_sp = spectrum_2d(dataset_pred.reshape(samples * batchsize, s, s), s)
+truth_sp = spectrum_2d(dataset_pred.reshape([samples * batchsize, s, s]), s)
 
 # Generate the spectrum plot and set all the settings
-fig, ax = plt.subplots(figsize=(10,10))
+fig, ax = plt.subplots(figsize=(10, 10))
 
 linewidth = 3
-ax.set_yscale('log')
+ax.set_yscale("log")
 
-length = 16 # typically till the resolution length of the dataset
-buffer = 10 # just add a buffer to the plot
+length = 16  # typically till the resolution length of the dataset
+buffer = 10  # just add a buffer to the plot
 k = np.arange(length + buffer) * 1.0
-ax.plot(truth_sp, 'k', linestyle=":", label="NS", linewidth=4)
 
-ax.set_xlim(1,length+buffer)
-ax.set_ylim(10, 10^10)
-plt.legend(prop={'size': 20})
-plt.title('Spectrum of {} Datset'.format(dataset_name))
+# paddle tensor doesn't support plot
+ax.plot(truth_sp.numpy(), "k", linestyle=":", label="NS", linewidth=4)
 
-plt.xlabel('wavenumber')
-plt.ylabel('energy')
+ax.set_xlim(1, length + buffer)
+ax.set_ylim(10, 10 ^ 10)
+plt.legend(prop={"size": 20})
+plt.title("Spectrum of {} Datset".format(dataset_name))
+
+plt.xlabel("wavenumber")
+plt.ylabel("energy")
 
 # show the figure
-leg = plt.legend(loc='best')
+leg = plt.legend(loc="best")
 leg.get_frame().set_alpha(0.5)
 plt.show()
 # %%

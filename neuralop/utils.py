@@ -1,8 +1,11 @@
-from typing import List, Optional, Union
-from math import prod
-import torch
-import wandb
 import warnings
+from math import prod
+from typing import List
+from typing import Optional
+from typing import Union
+
+import paddle
+import wandb
 
 
 # normalization, pointwise gaussian
@@ -10,8 +13,10 @@ class UnitGaussianNormalizer:
     def __init__(self, x, eps=0.00001, reduce_dim=[0], verbose=True):
         super().__init__()
 
-        msg = ("neuralop.utils.UnitGaussianNormalizer has been deprecated. "
-               "Please use the newer neuralop.datasets.UnitGaussianNormalizer instead.")
+        msg = (
+            "neuralop.utils.UnitGaussianNormalizer has been deprecated. "
+            "Please use the newer neuralop.datasets.UnitGaussianNormalizer instead."
+        )
         warnings.warn(msg, DeprecationWarning)
         n_samples, *shape = x.shape
         self.sample_shape = shape
@@ -19,8 +24,8 @@ class UnitGaussianNormalizer:
         self.reduce_dim = reduce_dim
 
         # x could be in shape of ntrain*n or ntrain*T*n or ntrain*n*T
-        self.mean = torch.mean(x, reduce_dim, keepdim=True).squeeze(0)
-        self.std = torch.std(x, reduce_dim, keepdim=True).squeeze(0)
+        self.mean = paddle.mean(x, reduce_dim, keepdim=True).squeeze(0)
+        self.std = paddle.std(x, reduce_dim, keepdim=True).squeeze(0)
         self.eps = eps
 
         if verbose:
@@ -56,25 +61,10 @@ class UnitGaussianNormalizer:
 
         return x
 
-    def cuda(self):
-        self.mean = self.mean.cuda()
-        self.std = self.std.cuda()
-        return self
-
-    def cpu(self):
-        self.mean = self.mean.cpu()
-        self.std = self.std.cpu()
-        return self
-
-    def to(self, device):
-        self.mean = self.mean.to(device)
-        self.std = self.std.to(device)
-        return self
-
 
 def count_model_params(model):
     """Returns the total number of parameters of a PyTorch model
-    
+
     Notes
     -----
     One complex number is counted as two parameters (we count real and imaginary parts)'
@@ -82,6 +72,7 @@ def count_model_params(model):
     return sum(
         [p.numel() * 2 if p.is_complex() else p.numel() for p in model.parameters()]
     )
+
 
 def count_tensor_params(tensor, dims=None):
     """Returns the number of parameters (elements) in a single tensor, optionally, along certain dimensions only
@@ -91,7 +82,7 @@ def count_tensor_params(tensor, dims=None):
     tensor : torch.tensor
     dims : int list or None, default is None
         if not None, the dimensions to consider when counting the number of parameters (elements)
-    
+
     Notes
     -----
     One complex number is counted as two parameters (we count real and imaginary parts)'
@@ -102,7 +93,7 @@ def count_tensor_params(tensor, dims=None):
         dims = [tensor.shape[d] for d in dims]
     n_params = prod(dims)
     if tensor.is_complex():
-        return 2*n_params
+        return 2 * n_params
     return n_params
 
 
@@ -157,42 +148,46 @@ def spectrum_2d(signal, n_observations, normalize=True):
         A 1D tensor of shape (s,) representing the computed spectrum.
     """
     T = signal.shape[0]
-    signal = signal.view(T, n_observations, n_observations)
+    signal = signal.view([T, n_observations, n_observations])
 
     if normalize:
-        signal = torch.fft.fft2(signal)
+        signal = paddle.fft.fft2(signal)
     else:
-        signal = torch.fft.rfft2(
+        signal = paddle.fft.rfft2(
             signal, s=(n_observations, n_observations), normalized=False
         )
 
     # 2d wavenumbers following PyTorch fft convention
     k_max = n_observations // 2
-    wavenumers = torch.cat(
+    wavenumers = paddle.concat(
         (
-            torch.arange(start=0, end=k_max, step=1),
-            torch.arange(start=-k_max, end=0, step=1),
+            paddle.arange(start=0, end=k_max, step=1),
+            paddle.arange(start=-k_max, end=0, step=1),
         ),
         0,
-    ).repeat(n_observations, 1)
-    k_x = wavenumers.transpose(0, 1)
+    ).tile([n_observations, 1])
+    k_x = wavenumers.transpose([1, 0])
     k_y = wavenumers
 
     # Sum wavenumbers
-    sum_k = torch.abs(k_x) + torch.abs(k_y)
+    sum_k = paddle.abs(k_x) + paddle.abs(k_y)
     sum_k = sum_k
 
     # Remove symmetric components from wavenumbers
-    index = -1.0 * torch.ones((n_observations, n_observations))
+    index = -1.0 * paddle.ones((n_observations, n_observations))
     k_max1 = k_max + 1
     index[0:k_max1, 0:k_max1] = sum_k[0:k_max1, 0:k_max1]
 
-    spectrum = torch.zeros((T, n_observations))
+    spectrum = paddle.zeros((T, n_observations))
     for j in range(1, n_observations + 1):
-        ind = torch.where(index == j)
-        spectrum[:, j - 1] = (signal[:, ind[0], ind[1]].sum(dim=1)).abs() ** 2
+        ind = paddle.where(index == j)
+        # [TODO]: paddle is not align for torch of usage of signal[:, ind[0], ind[1]],
+        # which ind[0] and ind[1] is tensor
+        spectrum[:, j - 1] = (
+            signal[:, ind[0].squeeze(-1), ind[1].squeeze(-1)].sum(axis=1)
+        ).abs() ** 2
 
-    spectrum = spectrum.mean(dim=0)
+    spectrum = spectrum.mean(axis=0)
     return spectrum
 
 

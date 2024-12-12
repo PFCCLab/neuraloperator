@@ -30,7 +30,7 @@ default: &DEFAULT
     implementation: 'factorized'
     separable: 0
     preactivation: 0
-    
+
     use_mlp: 1
     mlp:
         expansion: 0.5
@@ -82,7 +82,7 @@ default: &DEFAULT
   wandb:
     log: False
     name: None # If None, config will be used but you can override it here
-    group: '' 
+    group: ''
     project: ""
     entity: "" # put your username here
     sweep: False

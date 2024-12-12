@@ -1,10 +1,11 @@
 from pathlib import Path
-import torch
 
+import paddle
+
+from .data_transforms import DefaultDataProcessor
 from .output_encoder import UnitGaussianNormalizer
 from .tensor_dataset import TensorDataset
 from .transforms import PositionalEmbedding2D
-from .data_transforms import DefaultDataProcessor
 
 
 def load_darcy_flow_small(
@@ -89,11 +90,26 @@ def load_darcy_pt(
     channel_dim=1,
 ):
     """Load the Navier-Stokes dataset"""
-    data = torch.load(
-        Path(data_path).joinpath(f"darcy_train_{train_resolution}.pt").as_posix()
+    # import torch
+    data = paddle.load(
+        Path(data_path).joinpath(f"darcy_train_{train_resolution}.pdtensor").as_posix()
     )
+    # print(f"data type: {data}")
+    # print(f"data type: {data.dtype}")
+    # print(f"data type: {data.shape}")
+    # data_paddle_list = dict()
+    # for i, v in data.items():
+    #     print(i)
+    #     d = paddle.to_tensor(v.numpy())
+    #     print(d)
+    #     data_paddle_list[i] = d
+    # paddle.save(data_paddle_list, Path(data_path).joinpath(f"darcy_train_{train_resolution}.pdtensor").as_posix())
+
     x_train = (
-        data["x"][0:n_train, :, :].unsqueeze(channel_dim).type(torch.float32).clone()
+        data["x"][0:n_train, :, :]
+        .unsqueeze(channel_dim)
+        .to(dtype=paddle.float32)
+        .clone()
     )
     y_train = data["y"][0:n_train, :, :].unsqueeze(channel_dim).clone()
     del data
@@ -103,10 +119,11 @@ def load_darcy_pt(
     n_test = n_tests.pop(idx)
     test_batch_size = test_batch_sizes.pop(idx)
 
-    data = torch.load(
-        Path(data_path).joinpath(f"darcy_test_{train_resolution}.pt").as_posix()
+    data = paddle.load(
+        Path(data_path).joinpath(f"darcy_test_{train_resolution}.pdtensor").as_posix()
     )
-    x_test = data["x"][:n_test, :, :].unsqueeze(channel_dim).type(torch.float32).clone()
+
+    x_test = data["x"][:n_test, :, :].unsqueeze(channel_dim).to(paddle.float32).clone()
     y_test = data["y"][:n_test, :, :].unsqueeze(channel_dim).clone()
     del data
 
@@ -118,8 +135,8 @@ def load_darcy_pt(
 
         input_encoder = UnitGaussianNormalizer(dim=reduce_dims)
         input_encoder.fit(x_train)
-        #x_train = input_encoder.transform(x_train)
-        #x_test = input_encoder.transform(x_test.contiguous())
+        # x_train = input_encoder.transform(x_train)
+        # x_test = input_encoder.transform(x_test)
     else:
         input_encoder = None
 
@@ -131,7 +148,7 @@ def load_darcy_pt(
 
         output_encoder = UnitGaussianNormalizer(dim=reduce_dims)
         output_encoder.fit(y_train)
-        #y_train = output_encoder.transform(y_train)
+        # y_train = output_encoder.transform(y_train)
     else:
         output_encoder = None
 
@@ -139,12 +156,11 @@ def load_darcy_pt(
         x_train,
         y_train,
     )
-    train_loader = torch.utils.data.DataLoader(
+    train_loader = paddle.io.DataLoader(
         train_db,
         batch_size=batch_size,
         shuffle=True,
         num_workers=0,
-        pin_memory=True,
         persistent_workers=False,
     )
 
@@ -152,12 +168,11 @@ def load_darcy_pt(
         x_test,
         y_test,
     )
-    test_loader = torch.utils.data.DataLoader(
+    test_loader = paddle.io.DataLoader(
         test_db,
         batch_size=test_batch_size,
         shuffle=False,
         num_workers=0,
-        pin_memory=True,
         persistent_workers=False,
     )
     test_loaders = {train_resolution: test_loader}
@@ -168,30 +183,32 @@ def load_darcy_pt(
             f"Loading test db at resolution {res} with {n_test} samples "
             f"and batch-size={test_batch_size}"
         )
-        data = torch.load(Path(data_path).joinpath(f"darcy_test_{res}.pt").as_posix())
+
+        data = paddle.load(
+            Path(data_path).joinpath(f"darcy_test_{res}.pdtensor").as_posix()
+        )
+
         x_test = (
-            data["x"][:n_test, :, :].unsqueeze(channel_dim).type(torch.float32).clone()
+            data["x"][:n_test, :, :].unsqueeze(channel_dim).to(paddle.float32).clone()
         )
         y_test = data["y"][:n_test, :, :].unsqueeze(channel_dim).clone()
         del data
-        #if input_encoder is not None:
-            #x_test = input_encoder.transform(x_test)
+        # if input_encoder is not None:
+        #   x_test = input_encoder.transform(x_test)
 
         test_db = TensorDataset(
             x_test,
             y_test,
         )
-        test_loader = torch.utils.data.DataLoader(
+        test_loader = paddle.io.DataLoader(
             test_db,
             batch_size=test_batch_size,
             shuffle=False,
             num_workers=0,
-            pin_memory=True,
             persistent_workers=False,
         )
-        test_loaders[res] = test_loader 
+        test_loaders[res] = test_loader
 
-    
     if positional_encoding:
         pos_encoding = PositionalEmbedding2D(grid_boundaries=grid_boundaries)
     else:
@@ -199,6 +216,6 @@ def load_darcy_pt(
     data_processor = DefaultDataProcessor(
         in_normalizer=input_encoder,
         out_normalizer=output_encoder,
-        positional_encoding=pos_encoding
+        positional_encoding=pos_encoding,
     )
     return train_loader, test_loaders, data_processor

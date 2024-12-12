@@ -1,6 +1,6 @@
-import torch
+import paddle
 import zarr
-from torch.utils.data import Dataset
+from paddle.io import Dataset
 
 
 class ZarrDataset(Dataset):
@@ -57,7 +57,7 @@ class ZarrDataset(Dataset):
         return self.n_samples
 
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
+        if paddle.is_tensor(idx):
             idx = idx.tolist()
 
         if isinstance(idx, int):
@@ -66,16 +66,16 @@ class ZarrDataset(Dataset):
             ), f"Trying to access sample {idx} of dataset with {self.n_samples} samples"
         else:
             for i in idx:
-                assert (
-                    i < self.n_samples
-                ), f"Trying to access sample {i} " \
-                   f"of dataset with {self.n_samples} samples"
+                assert i < self.n_samples, (
+                    f"Trying to access sample {i} "
+                    f"of dataset with {self.n_samples} samples"
+                )
 
         x = self.data["x"][idx, :: self.subsample_step, :: self.subsample_step]
         y = self.data["y"][idx, :: self.subsample_step, :: self.subsample_step]
 
-        x = torch.tensor(x, dtype=torch.float32)
-        y = torch.tensor(y, dtype=torch.float32).unsqueeze(0)
+        x = paddle.to_tensor(x, dtype=paddle.float32)
+        y = paddle.to_tensor(y, dtype=paddle.float32).unsqueeze(0)
 
         if self.transform_x:
             x = self.transform_x(x)
@@ -86,22 +86,22 @@ class ZarrDataset(Dataset):
         return {"x": x, "y": y}
 
     def __getitems__(self, idx):
-        if torch.is_tensor(idx):
+        if paddle.is_tensor(idx):
             idx = idx.tolist()
 
-        x = torch.tensor(
+        x = paddle.to_tensor(
             [
                 self.data["x"][i, :: self.subsample_step, :: self.subsample_step]
                 for i in idx
             ],
-            dtype=torch.float32,
+            dtype=paddle.float32,
         )
-        y = torch.tensor(
+        y = paddle.to_tensor(
             [
                 self.data["y"][i, :: self.subsample_step, :: self.subsample_step]
                 for i in idx
             ],
-            dtype=torch.float32,
+            dtype=paddle.float32,
         )
 
         if self.transform_x:

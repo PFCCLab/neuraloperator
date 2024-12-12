@@ -1,18 +1,20 @@
-from typing import List, Optional, Union
+from typing import List
+from typing import Optional
+from typing import Union
 
-import torch
-from torch import nn
-from torch_harmonics import RealSHT, InverseRealSHT
-
+import paddle
 import tensorly as tl
+from paddle import nn
+from paddle_harmonics import InverseRealSHT
+from paddle_harmonics import RealSHT
 from tensorly.plugins import use_opt_einsum
-from tltorch.factorized_tensors.core import FactorizedTensor
 
-from neuralop.utils import validate_scaling_factor
+from ..tltorch.factorized_tensors.core import FactorizedTensor
+from ..utils import validate_scaling_factor
 from .base_spectral_conv import BaseSpectralConv
 from .spectral_convolution import SubConv
 
-tl.set_backend("pytorch")
+tl.set_backend("paddle")
 use_opt_einsum("optimal")
 
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -38,7 +40,7 @@ def _contract_dense(x, weight, separable=False, dhconv=True):
 
     eq = "".join(x_syms) + "," + "".join(weight_syms) + "->" + "".join(out_syms)
 
-    if not torch.is_tensor(weight):
+    if not paddle.is_tensor(weight):
         weight = weight.to_tensor()
 
     return tl.einsum(eq, x, weight)
@@ -178,7 +180,7 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
         else:
             return _contract_dense
     elif implementation == "factorized":
-        if torch.is_tensor(weight):
+        if paddle.is_tensor(weight):
             return _contract_dense
         elif isinstance(weight, FactorizedTensor):
             if weight.name.lower().endswith("dense"):
@@ -205,20 +207,21 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
 Number = Union[int, float]
 
 
-class SHT(nn.Module):
-    """A wrapper for the Spherical Harmonics transform 
+class SHT(nn.Layer):
+    """A wrapper for the Spherical Harmonics transform
 
     Allows to call it with an interface similar to that of FFT
     """
-    def __init__(self, dtype=torch.float32, device=None):
+
+    def __init__(self, dtype=paddle.float32, device=None):
         super().__init__()
         self.device = device
         self.dtype = dtype
-        self._SHT_cache = nn.ModuleDict()
-        self._iSHT_cache = nn.ModuleDict()
+        self._SHT_cache = nn.LayerDict()
+        self._iSHT_cache = nn.LayerDict()
 
     def sht(self, x, s=None, norm="ortho", grid="equiangular"):
-        *_, height, width = x.shape # height = latitude, width = longitude
+        *_, height, width = x.shape  # height = latitude, width = longitude
         if s is None:
             if grid == "equiangular":
                 modes_width = height // 2
@@ -233,28 +236,23 @@ class SHT(nn.Module):
         try:
             sht = self._SHT_cache[cache_key]
         except KeyError:
-            sht = (
-                RealSHT(
-                    nlat=height,
-                    nlon=width,
-                    lmax=modes_height,
-                    mmax=modes_width,
-                    grid=grid,
-                    norm=norm
-                )
-                .to(device=x.device)
-                .to(dtype=self.dtype)
-            )
+            sht = RealSHT(
+                nlat=height,
+                nlon=width,
+                lmax=modes_height,
+                mmax=modes_width,
+                grid=grid,
+                norm=norm,
+            ).to(dtype=self.dtype)
             self._SHT_cache[cache_key] = sht
-        
+
         return sht(x)
 
-
     def isht(self, x, s=None, norm="ortho", grid="equiangular"):
-        *_, modes_height, modes_width = x.shape # height = latitude, width = longitude
+        *_, modes_height, modes_width = x.shape  # height = latitude, width = longitude
         if s is None:
             if grid == "equiangular":
-                width = modes_width*2
+                width = modes_width * 2
             else:
                 width = modes_width
             height = modes_height
@@ -266,26 +264,22 @@ class SHT(nn.Module):
         try:
             isht = self._iSHT_cache[cache_key]
         except KeyError:
-            isht = (
-                InverseRealSHT(
-                    nlat=height,
-                    nlon=width,
-                    lmax=modes_height,
-                    mmax=modes_width,
-                    grid=grid,
-                    norm=norm
-                )
-                .to(device=x.device)
-                .to(dtype=self.dtype)
-            )
+            isht = InverseRealSHT(
+                nlat=height,
+                nlon=width,
+                lmax=modes_height,
+                mmax=modes_width,
+                grid=grid,
+                norm=norm,
+            ).to(dtype=self.dtype)
             self._iSHT_cache[cache_key] = isht
-        
+
         return isht(x)
 
 
 class SphericalConv(BaseSpectralConv):
     """Spherical Convolution, base class for the SFNO [1]_
-    
+
     Parameters
     ----------
     sht_norm : str, {'ortho'}
@@ -302,6 +296,7 @@ class SphericalConv(BaseSpectralConv):
            Boris Bonev, Thorsten Kurth, Christian Hundt, Jaideep Pathak, Maximilian Baust, Karthik Kashinath, Anima Anandkumar,
            ICML 2023.
     """
+
     def __init__(
         self,
         in_channels,
@@ -323,7 +318,7 @@ class SphericalConv(BaseSpectralConv):
         sht_norm="ortho",
         sht_grids="equiangular",
         device=None,
-        dtype=torch.float32,
+        dtype=paddle.float32,
     ):
         super().__init__(dtype=dtype, device=device)
 
@@ -352,7 +347,7 @@ class SphericalConv(BaseSpectralConv):
         ] = validate_scaling_factor(output_scaling_factor, self.order, n_layers)
 
         if init_std == "auto":
-            init_std = (2 / (in_channels + out_channels))**0.5
+            init_std = (2 / (in_channels + out_channels)) ** 0.5
         else:
             init_std = init_std
 
@@ -391,7 +386,7 @@ class SphericalConv(BaseSpectralConv):
             )
             self.weight.normal_(0, init_std)
         else:
-            self.weight = nn.ModuleList(
+            self.weight = nn.LayerList(
                 [
                     FactorizedTensor.new(
                         weight_shape,
@@ -410,22 +405,26 @@ class SphericalConv(BaseSpectralConv):
         )
 
         if bias:
-            self.bias = nn.Parameter(
-                init_std
-                * torch.randn(*((n_layers, self.out_channels) + (1,) * self.order))
+            # test
+            # https://github.com/PaddlePaddle/docs/blob/develop/docs/guides/model_convert/convert_from_pytorch/api_difference/nn/torch.nn.Parameter.md
+            # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/model_convert/convert_from_pytorch/api_difference/nn/torch.nn.Parameter.html
+            result_tuple = (n_layers, self.out_channels) + (1,) * self.order
+            shape = list(result_tuple)
+            self.bias = paddle.base.framework.EagerParamBase.from_tensor(
+                init_std * paddle.randn(shape)
             )
         else:
             self.bias = None
 
         self.sht_norm = sht_norm
         if isinstance(sht_grids, str):
-            sht_grids = [sht_grids]*(self.n_layers + 1)
+            sht_grids = [sht_grids] * (self.n_layers + 1)
         self.sht_grids = sht_grids
         self.sht_handle = SHT(dtype=self.dtype, device=self.device)
 
     def _get_weight(self, index):
         return self.weight[index]
-    
+
     def transform(self, x, layer_index=0, output_shape=None):
         *_, in_height, in_width = x.shape
 
@@ -438,11 +437,20 @@ class SphericalConv(BaseSpectralConv):
             height, width = in_height, in_width
 
         # Return the identity if the resolution and grid of the input and output are the same
-        if ((in_height, in_width) == (height, width)) and (self.sht_grids[layer_index] == self.sht_grids[layer_index+1]):
+        if ((in_height, in_width) == (height, width)) and (
+            self.sht_grids[layer_index] == self.sht_grids[layer_index + 1]
+        ):
             return x
         else:
-            coefs = self.sht_handle.sht(x, s=self.n_modes, norm=self.sht_norm, grid=self.sht_grids[layer_index])
-            return self.sht_handle.isht(coefs, s=(height, width), norm=self.sht_norm, grid=self.sht_grids[layer_index + 1])
+            coefs = self.sht_handle.sht(
+                x, s=self.n_modes, norm=self.sht_norm, grid=self.sht_grids[layer_index]
+            )
+            return self.sht_handle.isht(
+                coefs,
+                s=(height, width),
+                norm=self.sht_norm,
+                grid=self.sht_grids[layer_index + 1],
+            )
 
     def forward(self, x, indices=0, output_shape=None):
         """Generic forward pass for the Factorized Spectral Conv
@@ -467,18 +475,26 @@ class SphericalConv(BaseSpectralConv):
         elif output_shape is not None:
             height, width = output_shape[0], output_shape[1]
 
-        out_fft = self.sht_handle.sht(x, s=(self.n_modes[0], self.n_modes[1]//2),
-                                      norm=self.sht_norm, grid=self.sht_grids[indices])
+        out_fft = self.sht_handle.sht(
+            x,
+            s=(self.n_modes[0], self.n_modes[1] // 2),
+            norm=self.sht_norm,
+            grid=self.sht_grids[indices],
+        )
 
         out_fft = self._contract(
-            out_fft[:, :, :self.n_modes[0], :self.n_modes[1]//2],
-            self._get_weight(indices)[:, :, :self.n_modes[0]],
+            out_fft[:, :, : self.n_modes[0], : self.n_modes[1] // 2],
+            self._get_weight(indices)[:, :, : self.n_modes[0]],
             separable=self.separable,
             dhconv=True,
         )
 
-        x = self.sht_handle.isht(out_fft, s=(height, width), norm=self.sht_norm,
-                                 grid=self.sht_grids[indices+1])
+        x = self.sht_handle.isht(
+            out_fft,
+            s=(height, width),
+            norm=self.sht_norm,
+            grid=self.sht_grids[indices + 1],
+        )
 
         if self.bias is not None:
             x = x + self.bias[indices, ...]
@@ -488,10 +504,10 @@ class SphericalConv(BaseSpectralConv):
     @property
     def n_modes(self):
         return self._n_modes
-    
+
     @n_modes.setter
     def n_modes(self, n_modes):
-        if isinstance(n_modes, int): # Should happen for 1D FNO only
+        if isinstance(n_modes, int):  # Should happen for 1D FNO only
             n_modes = [n_modes]
         else:
             n_modes = list(n_modes)

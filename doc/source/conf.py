@@ -16,15 +16,18 @@
 
 
 # -- Project information -----------------------------------------------------
-
-project = 'neuraloperator'
 from datetime import datetime
+
+import neuralop
+
+project = "neuraloperator"
+
+
 year = datetime.now().year
-copyright = f'{year}, Jean Kossaifi, Nikola Kovachki, Zongyi Li and Anima Anandkumar'
-author = 'Jean Kossaifi, Nikola Kovachki, Zongyi Li and Anima Anandkumar'
+copyright = f"{year}, Jean Kossaifi, Nikola Kovachki, Zongyi Li and Anima Anandkumar"
+author = "Jean Kossaifi, Nikola Kovachki, Zongyi Li and Anima Anandkumar"
 
 # The full version, including alpha/beta/rc tags
-import neuralop
 release = neuralop.__version__
 
 
@@ -34,51 +37,51 @@ release = neuralop.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.todo',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.mathjax', #'sphinx.ext.imgmath',
-    'numpydoc.numpydoc',
-    'sphinx_gallery.gen_gallery',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.todo",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.mathjax",  # 'sphinx.ext.imgmath',
+    "numpydoc.numpydoc",
+    "sphinx_gallery.gen_gallery",
 ]
 
 sphinx_gallery_conf = {
-     'examples_dirs': '../../examples',   # path to your example scripts
-     'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
+    "examples_dirs": "../../examples",  # path to your example scripts
+    "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
 }
 
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
-# NumPy 
+# NumPy
 numpydoc_class_members_toctree = False
 numpydoc_show_class_members = True
 numpydoc_show_inherited_class_members = False
 
 # generate autosummary even if no references
 autosummary_generate = True
-autodoc_member_order = 'bysource'
-autodoc_default_flags = ['members']
+autodoc_member_order = "bysource"
+autodoc_default_flags = ["members"]
 
 # Napoleon
 napoleon_google_docstring = False
 napoleon_use_rtype = False
 
 # imgmath/mathjax
-imgmath_image_format = 'svg'
+imgmath_image_format = "svg"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -86,26 +89,26 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'tensorly_sphinx_theme'
-html_logo = '_static/logos/neuraloperator_logo.png'
+html_theme = "tensorly_sphinx_theme"
+html_logo = "_static/logos/neuraloperator_logo.png"
 html_show_sphinx = False
 
 html_theme_options = {
-    'github_url': 'https://github.com/neuraloperator/neuraloperator',
+    "github_url": "https://github.com/neuraloperator/neuraloperator",
     # 'google_analytics' : 'G-QSPLEF75VT',
-    'nav_links' : [('Install', 'install'),
-                   ('User Guide', 'user_guide/index'),
-                   ('API', 'modules/api'),
-                   ('Examples', 'auto_examples/index')
-                  ],
+    "nav_links": [
+        ("Install", "install"),
+        ("User Guide", "user_guide/index"),
+        ("API", "modules/api"),
+        ("Examples", "auto_examples/index"),
+    ],
     # 'external_nav_links' : [('TensorLy', 'http://tensorly.org/dev')]
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # Remove the permalinks ("¶" symbols)
 html_permalinks_icon = ""
-

@@ -1,12 +1,13 @@
-from typing import List, Union
+from typing import List
+from typing import Union
 
-from torch import nn
-from torch.nn import functional as F
+from paddle import nn
+from paddle.nn import functional as F
 
-from neuralop.utils import validate_scaling_factor
+from ..utils import validate_scaling_factor
 
 
-class DomainPadding(nn.Module):
+class DomainPadding(nn.Layer):
     """Applies domain padding scaled automatically to the input's resolution
 
     Parameters
@@ -93,8 +94,6 @@ class DomainPadding(nn.Module):
             # padding is being applied in reverse order
             # (so we must reverse the padding list)
             padding = padding[::-1]
-
-            
 
             # the F.pad(x, padding) funtion pads the tensor 'x' in reverse order
             # of the "padding" list i.e. the last axis of tensor 'x' will be

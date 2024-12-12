@@ -1,20 +1,21 @@
-from typing import List, Optional, Union
+from typing import List
+from typing import Optional
+from typing import Union
 
-import torch
-from torch import nn
-import torch.nn.functional as F
+import paddle
+import paddle.nn.functional as F
+from paddle import nn
 
+from ..utils import validate_scaling_factor
 from .mlp import MLP
 from .normalization_layers import AdaIN
 from .skip_connections import skip_connection
 from .spectral_convolution import SpectralConv
-from ..utils import validate_scaling_factor
-
 
 Number = Union[int, float]
 
 
-class FNOBlocks(nn.Module):
+class FNOBlocks(nn.Layer):
     def __init__(
         self,
         in_channels,
@@ -94,7 +95,7 @@ class FNOBlocks(nn.Module):
             n_layers=n_layers,
         )
 
-        self.fno_skips = nn.ModuleList(
+        self.fno_skips = nn.LayerList(
             [
                 skip_connection(
                     self.in_channels,
@@ -107,7 +108,7 @@ class FNOBlocks(nn.Module):
         )
 
         if use_mlp:
-            self.mlp = nn.ModuleList(
+            self.mlp = nn.LayerList(
                 [
                     MLP(
                         in_channels=self.out_channels,
@@ -118,7 +119,7 @@ class FNOBlocks(nn.Module):
                     for _ in range(n_layers)
                 ]
             )
-            self.mlp_skips = nn.ModuleList(
+            self.mlp_skips = nn.LayerList(
                 [
                     skip_connection(
                         self.in_channels,
@@ -137,7 +138,7 @@ class FNOBlocks(nn.Module):
         if norm is None:
             self.norm = None
         elif norm == "instance_norm":
-            self.norm = nn.ModuleList(
+            self.norm = nn.LayerList(
                 [
                     getattr(nn, f"InstanceNorm{self.n_dim}d")(
                         num_features=self.out_channels
@@ -146,21 +147,21 @@ class FNOBlocks(nn.Module):
                 ]
             )
         elif norm == "group_norm":
-            self.norm = nn.ModuleList(
+            self.norm = nn.LayerList(
                 [
                     nn.GroupNorm(num_groups=1, num_channels=self.out_channels)
                     for _ in range(n_layers * self.n_norms)
                 ]
             )
         # elif norm == 'layer_norm':
-        #     self.norm = nn.ModuleList(
+        #     self.norm = nn.LayerList(
         #         [
         #             nn.LayerNorm(elementwise_affine=False)
         #             for _ in range(n_layers*self.n_norms)
         #         ]
         #     )
         elif norm == "ada_in":
-            self.norm = nn.ModuleList(
+            self.norm = nn.LayerList(
                 [
                     AdaIN(ada_in_features, out_channels)
                     for _ in range(n_layers * self.n_norms)
@@ -200,10 +201,12 @@ class FNOBlocks(nn.Module):
 
         if self.mlp is not None:
             x_skip_mlp = self.mlp_skips[index](x)
-            x_skip_mlp = self.convs[index].transform(x_skip_mlp, output_shape=output_shape)
+            x_skip_mlp = self.convs[index].transform(
+                x_skip_mlp, output_shape=output_shape
+            )
 
         if self.stabilizer == "tanh":
-            x = torch.tanh(x)
+            x = paddle.tanh(x)
 
         x_fno = self.convs(x, index, output_shape=output_shape)
 
@@ -239,10 +242,12 @@ class FNOBlocks(nn.Module):
 
         if self.mlp is not None:
             x_skip_mlp = self.mlp_skips[index](x)
-            x_skip_mlp = self.convs[index].transform(x_skip_mlp, output_shape=output_shape)
+            x_skip_mlp = self.convs[index].transform(
+                x_skip_mlp, output_shape=output_shape
+            )
 
         if self.stabilizer == "tanh":
-            x = torch.tanh(x)
+            x = paddle.tanh(x)
 
         x_fno = self.convs(x, index, output_shape=output_shape)
         x = x_fno + x_skip_fno
@@ -283,7 +288,7 @@ class FNOBlocks(nn.Module):
         return self.get_block(indices)
 
 
-class SubModule(nn.Module):
+class SubModule(nn.Layer):
     """Class representing one of the sub_module from the mother joint module
 
     Notes

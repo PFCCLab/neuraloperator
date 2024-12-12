@@ -1,16 +1,25 @@
 import sys
-import torch
-import wandb
-from configmypy import ConfigPipeline, YamlConfig, ArgparseConfig
-from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.nn.functional as F
 
-from neuralop import H1Loss, LpLoss, BurgersEqnLoss, ICLoss, WeightedSumLoss, Trainer, get_model
+import paddle
+import paddle.nn.functional as F
+import wandb
+from configmypy import ArgparseConfig
+from configmypy import ConfigPipeline
+from configmypy import YamlConfig
+from neuralop import BurgersEqnLoss
+from neuralop import H1Loss
+from neuralop import ICLoss
+from neuralop import LpLoss
+from neuralop import Trainer
+from neuralop import WeightedSumLoss
+from neuralop import get_model
 from neuralop.datasets import load_burgers_1dtime
 from neuralop.datasets.data_transforms import MGPatchingDataProcessor
-from neuralop.training import setup, BasicLoggerCallback
-from neuralop.utils import get_wandb_api_key, count_model_params
-
+from neuralop.training import BasicLoggerCallback
+from neuralop.training import setup
+from neuralop.utils import count_model_params
+from neuralop.utils import get_wandb_api_key
+from paddle import DataParallel as DDP
 
 # Read the configuration
 config_name = "default"
@@ -60,7 +69,7 @@ if config.wandb.log and is_logger:
         for key in wandb.config.keys():
             config.params[key] = wandb.config[key]
 
-else: 
+else:
     wandb_init_args = None
 # Make sure we only print information when needed
 config.verbose = config.verbose and is_logger
@@ -71,13 +80,18 @@ if config.verbose:
     sys.stdout.flush()
 
 # Load the Burgers dataset
-train_loader, test_loaders, output_encoder = load_burgers_1dtime(data_path=config.data.folder,
-        n_train=config.data.n_train, batch_size=config.data.batch_size, 
-        n_test=config.data.n_tests[0], batch_size_test=config.data.test_batch_sizes[0],
-        temporal_length=config.data.temporal_length, spatial_length=config.data.spatial_length,
-        pad=config.data.get("pad", 0), temporal_subsample=config.data.get("temporal_subsample", 1),
-        spatial_subsample=config.data.get("spatial_subsample", 1),
-        )
+train_loader, test_loaders, output_encoder = load_burgers_1dtime(
+    data_path=config.data.folder,
+    n_train=config.data.n_train,
+    batch_size=config.data.batch_size,
+    n_test=config.data.n_tests[0],
+    batch_size_test=config.data.test_batch_sizes[0],
+    temporal_length=config.data.temporal_length,
+    spatial_length=config.data.spatial_length,
+    pad=config.data.get("pad", 0),
+    temporal_subsample=config.data.get("temporal_subsample", 1),
+    spatial_subsample=config.data.get("spatial_subsample", 1),
+)
 
 model = get_model(config)
 model = model.to(device)
@@ -89,37 +103,39 @@ if config.distributed.use_distributed:
     )
 
 # Create the optimizer
-optimizer = torch.optim.Adam(
-    model.parameters(),
-    lr=config.opt.learning_rate,
-    weight_decay=config.opt.weight_decay,
-)
-
 if config.opt.scheduler == "ReduceLROnPlateau":
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
+    scheduler = paddle.optimizer.lr.ReduceOnPlateau(
+        learning_rate=config.opt.learning_rate,
         factor=config.opt.gamma,
         patience=config.opt.scheduler_patience,
         mode="min",
     )
 elif config.opt.scheduler == "CosineAnnealingLR":
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config.opt.scheduler_T_max
+    scheduler = paddle.optimizer.lr.CosineAnnealingDecay(
+        learning_rate=config.opt.learning_rate, T_max=config.opt.scheduler_T_max
     )
 elif config.opt.scheduler == "StepLR":
-    scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=config.opt.step_size, gamma=config.opt.gamma
+    scheduler = paddle.optimizer.lr.StepDecay(
+        learning_rate=config.opt.learning_rate,
+        step_size=config.opt.step_size,
+        gamma=config.opt.gamma,
     )
 else:
     raise ValueError(f"Got scheduler={config.opt.scheduler}")
 
+optimizer = paddle.optimizer.Adam(
+    parameters=model.parameters(),
+    learning_rate=scheduler,
+    weight_decay=config.opt.weight_decay,
+)
 
 # Creating the losses
 l2loss = LpLoss(d=2, p=2)
 h1loss = H1Loss(d=2)
 ic_loss = ICLoss()
-equation_loss = BurgersEqnLoss(method=config.opt.get('pino_method', None), 
-                               visc=0.01, loss=F.mse_loss)
+equation_loss = BurgersEqnLoss(
+    method=config.opt.get("pino_method", None), visc=0.01, loss=F.mse_loss
+)
 
 training_loss = config.opt.training_loss
 if not isinstance(training_loss, (tuple, list)):
@@ -129,22 +145,22 @@ losses = []
 weights = []
 for loss in training_loss:
     # Append loss
-    if loss == 'l2':
+    if loss == "l2":
         losses.append(l2loss)
-    elif loss == 'h1':
+    elif loss == "h1":
         losses.append(h1loss)
-    elif loss == 'equation':
+    elif loss == "equation":
         losses.append(equation_loss)
-    elif loss == 'ic':
+    elif loss == "ic":
         losses.append(ic_loss)
     else:
-        raise ValueError(f'Training_loss={loss} is not supported.')
+        raise ValueError(f"Training_loss={loss} is not supported.")
 
     # Append loss weight
     if "loss_weights" in config.opt:
-        weights.append(config.opt.loss_weights.get(loss, 1.))
+        weights.append(config.opt.loss_weights.get(loss, 1.0))
     else:
-        weights.append(1.)
+        weights.append(1.0)
 
 train_loss = WeightedSumLoss(losses=losses, weights=weights)
 eval_losses = {"h1": h1loss, "l2": l2loss}
@@ -156,22 +172,22 @@ if config.verbose:
     print("\n### LOSSES ###")
     print(f"\n * Train: {train_loss}")
     print(f"\n * Test: {eval_losses}")
-    print(f"\n### Beginning Training...\n")
+    print("\n### Beginning Training...\n")
     sys.stdout.flush()
 
 # only perform MG patching if config patching levels > 0
 
-callbacks = [
-    BasicLoggerCallback(wandb_init_args)
-]
+callbacks = [BasicLoggerCallback(wandb_init_args)]
 
-data_processor = MGPatchingDataProcessor(model=model,
-                                       levels=config.patching.levels,
-                                       padding_fraction=config.patching.padding,
-                                       stitching=config.patching.stitching,
-                                       device=device,
-                                       in_normalizer=output_encoder,
-                                       out_normalizer=output_encoder)
+data_processor = MGPatchingDataProcessor(
+    model=model,
+    levels=config.patching.levels,
+    padding_fraction=config.patching.padding,
+    stitching=config.patching.stitching,
+    device=device,
+    in_normalizer=output_encoder,
+    out_normalizer=output_encoder,
+)
 trainer = Trainer(
     model=model,
     n_epochs=config.opt.n_epochs,
@@ -183,7 +199,7 @@ trainer = Trainer(
     log_output=config.wandb.log_output,
     use_distributed=config.distributed.use_distributed,
     verbose=config.verbose,
-    wandb_log = config.wandb.log
+    wandb_log=config.wandb.log,
 )
 
 # Log parameter count

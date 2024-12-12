@@ -1,9 +1,8 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
+import paddle.nn.functional as F
+from paddle import nn
 
 
-class MLP(nn.Module):
+class MLP(nn.Layer):
     """A Multi-Layer Perceptron, with arbitrary number of layers
 
     Parameters
@@ -40,13 +39,13 @@ class MLP(nn.Module):
         )
         self.non_linearity = non_linearity
         self.dropout = (
-            nn.ModuleList([nn.Dropout(dropout) for _ in range(n_layers)])
+            nn.LayerList([nn.Dropout(dropout) for _ in range(n_layers)])
             if dropout > 0.0
             else None
         )
 
-        Conv = getattr(nn, f"Conv{n_dim}d")
-        self.fcs = nn.ModuleList()
+        Conv = getattr(nn, f"Conv{n_dim}D")
+        self.fcs = nn.LayerList()
         for i in range(n_layers):
             if i == 0 and i == (n_layers - 1):
                 self.fcs.append(Conv(self.in_channels, self.out_channels, 1))
@@ -69,7 +68,7 @@ class MLP(nn.Module):
 
 
 # Reimplementation of the MLP class using Linear instead of Conv
-class MLPLinear(torch.nn.Module):
+class MLPLinear(nn.Layer):
     def __init__(self, layers, non_linearity=F.gelu, dropout=0.0):
         super().__init__()
 
@@ -77,10 +76,10 @@ class MLPLinear(torch.nn.Module):
 
         assert self.n_layers >= 1
 
-        self.fcs = nn.ModuleList()
+        self.fcs = nn.LayerList()
         self.non_linearity = non_linearity
         self.dropout = (
-            nn.ModuleList([nn.Dropout(dropout) for _ in range(self.n_layers)])
+            nn.LayerList([nn.Dropout(dropout) for _ in range(self.n_layers)])
             if dropout > 0.0
             else None
         )

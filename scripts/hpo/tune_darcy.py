@@ -1,17 +1,22 @@
 import sys
 
-from configmypy import ConfigPipeline, YamlConfig, ArgparseConfig
-import torch
-from torch.nn.parallel import DistributedDataParallel as DDP
-import wandb
 import optuna
-
-from neuralop import H1Loss, LpLoss, Trainer, get_model
+import torch
+import wandb
+from configmypy import ArgparseConfig
+from configmypy import ConfigPipeline
+from configmypy import YamlConfig
+from neuralop import H1Loss
+from neuralop import LpLoss
+from neuralop import Trainer
+from neuralop import get_model
 from neuralop.datasets import load_darcy_flow_small
 from neuralop.training import setup
-from neuralop.training.callbacks import MGPatchingCallback, SimpleWandBLoggerCallback
-from neuralop.utils import get_wandb_api_key, count_params
-
+from neuralop.training.callbacks import MGPatchingCallback
+from neuralop.training.callbacks import SimpleWandBLoggerCallback
+from neuralop.utils import count_params
+from neuralop.utils import get_wandb_api_key
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 # Read the configuration
 config_name = "default"
@@ -81,12 +86,13 @@ train_loader, test_loaders, output_encoder = load_darcy_flow_small(
     encode_output=config.data.encode_output,
 )
 
+
 def objective(trial):
     config = pipe.read_conf()
 
     # sample hyperparameters
-    learning_rate = trial.suggest_float('learning_rate', 5e-5, 5e-1)
-    batch_size = trial.suggest_float('batch_size', 8, 64)
+    learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-1)
+    batch_size = trial.suggest_float("batch_size", 8, 64)
 
     # add hyperparameters to the config
     config.opt.learning_rate = learning_rate
@@ -99,7 +105,10 @@ def objective(trial):
     # Use distributed data parallel
     if config.distributed.use_distributed:
         model = DDP(
-            model, device_ids=[device.index], output_device=device.index, static_graph=True
+            model,
+            device_ids=[device.index],
+            output_device=device.index,
+            static_graph=True,
         )
 
     # Log parameter count
@@ -118,7 +127,6 @@ def objective(trial):
                 to_log["space_savings"] = 1 - (n_params / config.n_params_baseline)
             wandb.log(to_log)
             wandb.watch(model)
-
 
     # Create the optimizer
     optimizer = torch.optim.Adam(
@@ -145,7 +153,6 @@ def objective(trial):
     else:
         raise ValueError(f"Got scheduler={config.opt.scheduler}")
 
-
     # Creating the losses
     l2loss = LpLoss(d=2, p=2)
     h1loss = H1Loss(d=2)
@@ -155,7 +162,7 @@ def objective(trial):
         train_loss = h1loss
     else:
         raise ValueError(
-            f'Got training_loss={config.opt.training_loss} '
+            f"Got training_loss={config.opt.training_loss} "
             f'but expected one of ["l2", "h1"]'
         )
     eval_losses = {"h1": h1loss, "l2": l2loss}
@@ -167,7 +174,7 @@ def objective(trial):
         print("\n### LOSSES ###")
         print(f"\n * Train: {train_loss}")
         print(f"\n * Test: {eval_losses}")
-        print(f"\n### Beginning Training...\n")
+        print("\n### Beginning Training...\n")
         sys.stdout.flush()
 
     trainer = Trainer(
@@ -181,14 +188,15 @@ def objective(trial):
         use_distributed=config.distributed.use_distributed,
         verbose=config.verbose and is_logger,
         callbacks=[
-            MGPatchingCallback(levels=config.patching.levels,
-                                    padding_fraction=config.patching.padding,
-                                    stitching=config.patching.stitching,
-                                    encoder=output_encoder),
-            SimpleWandBLoggerCallback()
-                ]
-                )
-
+            MGPatchingCallback(
+                levels=config.patching.levels,
+                padding_fraction=config.patching.padding,
+                stitching=config.patching.stitching,
+                encoder=output_encoder,
+            ),
+            SimpleWandBLoggerCallback(),
+        ],
+    )
 
     errors = trainer.train(
         train_loader=train_loader,
@@ -204,7 +212,8 @@ def objective(trial):
         wandb.finish()
 
     # specify the metric for Optuna to search over
-    return errors['32_h1']
+    return errors["32_h1"]
+
 
 study = optuna.create_study()
 study.optimize(objective, n_trials=100)

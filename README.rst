@@ -7,7 +7,54 @@
 
 
 ===============
-Neural Operator
+Neural Operator(Paddle backend)
+===============
+
+.. image::  doc/_static/paddle_logo.png
+
+.. important::
+   
+   This branch (paddle) experimentally integrates the `Paddle backend <https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html>`_ to Neural Operator.
+
+   It was developed from version 0.3.0 of Neural Operator. It is recommended to install **nightly-build (develop)** Paddle before running any code in this branch.
+
+   It was verified on Ubuntu 20.04. It may encounter some problems if you are using another environment.
+
+Installation
+------------
+
+.. code::
+
+   # install nightly-build paddlepaddle
+   python -m pip install --pre paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/nightly/cu118/
+
+   # triton
+   pip install -U --index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/Triton-Nightly/pypi/simple/ triton-nightly
+
+   # install paddle_harmonics
+   git clone https://github.com/co63oc/PaddleScience.git
+   cd PaddleScience
+   git checkout fix2
+   cd jointContribution/paddle_harmonics
+   pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
+   export PYTHONPATH=</path to/PaddleScience/jointContribution/paddle_harmonics>:$PYTHONPATH
+
+   # install nightly-build ppsci
+   python -m pip install https://paddle-qa.bj.bcebos.com/PaddleScience/whl/latest/dist/paddlesci-0.0.0-py3-none-any.whl -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+   # install neuraloperator
+   cd neuraloperator
+   pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+Unit Test
+------------
+
+.. code::
+
+   cd neuraloperator/example
+   pytest
+
+Below is Neural Operator's original README
 ===============
 
 ``neuraloperator`` is a comprehensive library for 
