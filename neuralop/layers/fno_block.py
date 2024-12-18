@@ -140,7 +140,7 @@ class FNOBlocks(nn.Layer):
         elif norm == "instance_norm":
             self.norm = nn.LayerList(
                 [
-                    getattr(nn, f"InstanceNorm{self.n_dim}d")(
+                    getattr(nn, f"InstanceNorm{self.n_dim}D")(
                         num_features=self.out_channels
                     )
                     for _ in range(n_layers * self.n_norms)

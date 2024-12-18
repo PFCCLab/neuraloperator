@@ -38,17 +38,17 @@ def resample(x, res_scale, axis, output_shape=None):
         new_size = output_shape
 
     if len(axis) == 1:
-        return F.interpolate(x, size=new_size[0], mode="linear", align_corners=True)
+        return F.interpolate(x, size=[new_size[0]], mode="linear", align_corners=True)
     if len(axis) == 2:
         return F.interpolate(x, size=new_size, mode="bicubic", align_corners=True)
 
-    X = paddle.fft.rfftn(x.float(), norm="forward", dim=axis)
+    X = paddle.fft.rfftn(x.astype('float32'), norm="forward", axes=axis)
 
     new_fft_size = list(new_size)
     new_fft_size[-1] = new_fft_size[-1] // 2 + 1  # Redundant last coefficient
     new_fft_size_c = [min(i, j) for (i, j) in zip(new_fft_size, X.shape[-len(axis) :])]
     out_fft = paddle.zeros(
-        [x.shape[0], x.shape[1], *new_fft_size], device=x.device, dtype="complex64"
+        [x.shape[0], x.shape[1], *new_fft_size], dtype="complex64"
     )
 
     mode_indexing = [((None, m // 2), (-m // 2, None)) for m in new_fft_size_c[:-1]] + [
@@ -58,8 +58,9 @@ def resample(x, res_scale, axis, output_shape=None):
 
         idx_tuple = [slice(None), slice(None)] + [slice(*b) for b in boundaries]
 
+        idx_tuple = tuple(idx_tuple)
         out_fft[idx_tuple] = X[idx_tuple]
-    y = paddle.fft.irfftn(out_fft, s=new_size, norm="forward", dim=axis)
+    y = paddle.fft.irfftn(out_fft, s=new_size, norm="forward", axes=axis)
 
     return y
 
