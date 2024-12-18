@@ -9,7 +9,7 @@ from paddle_harmonics import InverseRealSHT
 from paddle_harmonics import RealSHT
 from tensorly.plugins import use_opt_einsum
 
-from ..tltorch.factorized_tensors.core import FactorizedTensor
+from ..tlpaddle.factorized_tensors.core import FactorizedTensor
 from ..utils import validate_scaling_factor
 from .base_spectral_conv import BaseSpectralConv
 from .spectral_convolution import SubConv

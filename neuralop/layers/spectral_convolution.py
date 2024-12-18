@@ -8,7 +8,7 @@ import tensorly as tl
 from paddle import nn
 from tensorly.plugins import use_opt_einsum
 
-from ..tltorch.factorized_tensors.core import FactorizedTensor
+from ..tlpaddle.factorized_tensors.core import FactorizedTensor
 from ..utils import validate_scaling_factor
 
 # from .einsum_utils import einsum_complexhalf

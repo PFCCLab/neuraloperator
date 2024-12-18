@@ -2,7 +2,7 @@ __version__ = "0.3.0"
 
 from . import datasets
 from . import mpu
-from . import tltorch
+from . import tlpaddle
 from .losses import BurgersEqnLoss
 from .losses import H1Loss
 from .losses import ICLoss
@@ -19,7 +19,7 @@ from .training import Trainer
 __all__ = [
     "datasets",
     "mpu",
-    "tltorch",
+    "tlpaddle",
     "BurgersEqnLoss",
     "H1Loss",
     "ICLoss",
