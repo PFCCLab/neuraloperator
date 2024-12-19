@@ -31,7 +31,7 @@ def test_SphericalConv(factorization, implementation):
     res_dense = conv_dense(x)
     res = conv(x)
 
-    assert paddle.allclose(res_dense, res, rtol=1e-5, atol=1e-6).item()
+    assert paddle.allclose(res_dense, res, atol=1e-6).item()
 
     # Downsample outputs
     block = SphericalConv(

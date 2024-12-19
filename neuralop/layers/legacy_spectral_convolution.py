@@ -1,26 +1,30 @@
 import itertools
-from typing import List, Optional, Tuple, Union
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
+
+import paddle
+
+import neuralop
 
 from ..utils import validate_scaling_factor
 
 try:
-    from typing import Literal
+    from typing import Literal  # noqa
 except ImportError:
-    from typing_extensions import Literal
-
-import paddle
-from paddle import nn
+    from typing_extensions import Literal  # noqa
 
 import tensorly as tl
 from tensorly.plugins import use_opt_einsum
-from ..tlpaddle.factorized_tensors.core import FactorizedTensor
 
-# from .einsum_utils import einsum_complexhalf
 from .base_spectral_conv import BaseSpectralConv
+# from .einsum_utils import einsum_complexhalf  # noqa
 from .resample import resample
 
 tl.set_backend("paddle")
 use_opt_einsum("optimal")
+
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
@@ -36,18 +40,14 @@ def _contract_dense(x, weight, separable=False):
     if separable:
         out_syms = [x_syms[0]] + list(weight_syms)
     else:
-        weight_syms.insert(1, einsum_symbols[order])  # outputs
+        weight_syms.insert(1, einsum_symbols[order])
         out_syms = list(weight_syms)
         out_syms[0] = x_syms[0]
-
-    eq = f'{"".join(x_syms)},{"".join(weight_syms)}->{"".join(out_syms)}'
-
-    if not paddle.is_tensor(weight):
+    eq = f"{''.join(x_syms)},{''.join(weight_syms)}->{''.join(out_syms)}"
+    if not paddle.is_tensor(x=weight):
         weight = weight.to_tensor()
-
-    # [TODO] Complex32 is not supported in Paddle.
-    # if x.dtype == paddle.complex32:
-    #     # if x is half precision, run a specialized einsum
+    # paddle not support complex32
+    # if x.dtype == torch.complex32:
     #     return einsum_complexhalf(eq, x, weight)
     # else:
     #     return tl.einsum(eq, x, weight)
@@ -62,7 +62,6 @@ def _contract_dense_separable(x, weight, separable=True):
 
 def _contract_cp(x, cp_weight, separable=False):
     order = tl.ndim(x)
-
     x_syms = str(einsum_symbols[:order])
     rank_sym = einsum_symbols[order]
     out_sym = einsum_symbols[order + 1]
@@ -71,12 +70,11 @@ def _contract_cp(x, cp_weight, separable=False):
         factor_syms = [einsum_symbols[1] + rank_sym]  # in only
     else:
         out_syms[1] = out_sym
-        factor_syms = [einsum_symbols[1] + rank_sym, out_sym + rank_sym]  # in, out
-    factor_syms += [xs + rank_sym for xs in x_syms[2:]]  # x, y, ...
-    eq = f'{x_syms},{rank_sym},{",".join(factor_syms)}->{"".join(out_syms)}'
-
-    # [TODO] Complex32 is not supported in Paddle.
-    # if x.dtype == paddle.complex32:
+        factor_syms = [einsum_symbols[1] + rank_sym, out_sym + rank_sym]
+    factor_syms += [(xs + rank_sym) for xs in x_syms[2:]]
+    eq = f"{x_syms},{rank_sym},{','.join(factor_syms)}->{''.join(out_syms)}"
+    # paddle not support complex32
+    # if x.dtype == torch.complex32:
     #     return einsum_complexhalf(eq, x, cp_weight.weights, *cp_weight.factors)
     # else:
     #     return tl.einsum(eq, x, cp_weight.weights, *cp_weight.factors)
@@ -90,26 +88,24 @@ def _contract_tucker(x, tucker_weight, separable=False):
     out_sym = einsum_symbols[order]
     out_syms = list(x_syms)
     if separable:
-        core_syms = einsum_symbols[order + 1: 2 * order]
+        core_syms = einsum_symbols[order + 1 : 2 * order]
         # factor_syms = [einsum_symbols[1]+core_syms[0]] #in only
         # x, y, ...
-        factor_syms = [xs + rs for (xs, rs) in zip(x_syms[1:], core_syms)]
-
+        factor_syms = [(xs + rs) for xs, rs in zip(x_syms[1:], core_syms)]
     else:
-        core_syms = einsum_symbols[order + 1: 2 * order + 1]
+        core_syms = einsum_symbols[order + 1 : 2 * order + 1]
         out_syms[1] = out_sym
         factor_syms = [
             einsum_symbols[1] + core_syms[0],
             out_sym + core_syms[1],
         ]  # out, in
         # x, y, ...
-        factor_syms += [xs + rs for (xs, rs) in zip(x_syms[2:], core_syms[2:])]
-
-    eq = f'{x_syms},{core_syms},{",".join(factor_syms)}->{"".join(out_syms)}'
-
-    # [TODO] Complex32 is not supported in Paddle.
-    # if x.dtype == paddle.complex32:
-    #     return einsum_complexhalf(eq, x, tucker_weight.core, *tucker_weight.factors)
+        factor_syms += [(xs + rs) for xs, rs in zip(x_syms[2:], core_syms[2:])]
+    eq = f"{x_syms},{core_syms},{','.join(factor_syms)}->{''.join(out_syms)}"
+    # paddle not support complex32
+    # if x.dtype == torch.complex32:
+    #     return einsum_complexhalf(eq, x, tucker_weight.core, *tucker_weight
+    #         .factors)
     # else:
     #     return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
     return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
@@ -117,28 +113,19 @@ def _contract_tucker(x, tucker_weight, separable=False):
 
 def _contract_tt(x, tt_weight, separable=False):
     order = tl.ndim(x)
-
     x_syms = list(einsum_symbols[:order])
-    weight_syms = list(x_syms[1:])  # no batch-size
+    weight_syms = list(x_syms[1:])
     if not separable:
-        weight_syms.insert(1, einsum_symbols[order])  # outputs
+        weight_syms.insert(1, einsum_symbols[order])
         out_syms = list(weight_syms)
         out_syms[0] = x_syms[0]
     else:
         out_syms = list(x_syms)
-    rank_syms = list(einsum_symbols[order + 1:])
+    rank_syms = list(einsum_symbols[order + 1 :])
     tt_syms = []
     for i, s in enumerate(weight_syms):
         tt_syms.append([rank_syms[i], s, rank_syms[i + 1]])
-    eq = (
-        "".join(x_syms)
-        + ","
-        + ",".join("".join(f) for f in tt_syms)
-        + "->"
-        + "".join(out_syms)
-    )
-
-    # [TODO] Complex32 is not supported in Paddle.
+    eq = "".join(x_syms) + "," + ",".join("".join(f) for f in tt_syms) + "->" + "".join(out_syms)
     # if x.dtype == torch.complex32:
     #     return einsum_complexhalf(eq, x, *tt_weight.factors)
     # else:
@@ -151,7 +138,7 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
 
     Parameters
     ----------
-    weight : tensorly-torch's FactorizedTensor
+    weight : tensorly-paddle's FactorizedTensor
     implementation : {'reconstructed', 'factorized'}, default is 'reconstructed'
         whether to reconstruct the weight and do a forward pass (reconstructed)
         or contract directly the factors of the factorized weight with the input (factorized)
@@ -170,9 +157,9 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
         else:
             return _contract_dense
     elif implementation == "factorized":
-        if paddle.is_tensor(weight):
+        if paddle.is_tensor(x=weight):
             return _contract_dense
-        elif isinstance(weight, FactorizedTensor):
+        elif isinstance(weight, neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor):
             if weight.name.lower().endswith("dense"):
                 return _contract_dense
             elif weight.name.lower().endswith("tucker"):
@@ -184,9 +171,7 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
             else:
                 raise ValueError(f"Got unexpected factorized weight type {weight.name}")
         else:
-            raise ValueError(
-                f"Got unexpected weight type of class {weight.__class__.__name__}"
-            )
+            raise ValueError(f"Got unexpected weight type of class {weight.__class__.__name__}")
     else:
         raise ValueError(
             f'Got implementation={implementation}, expected "reconstructed" or "factorized"'
@@ -271,7 +256,6 @@ class SpectralConv(BaseSpectralConv):
         dtype=None,
     ):
         super().__init__(dtype=dtype, device=device)
-
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.joint_factorization = joint_factorization
@@ -284,8 +268,7 @@ class SpectralConv(BaseSpectralConv):
             n_modes = [n_modes]
         self.n_modes = n_modes
         self.order = len(n_modes)
-
-        half_total_n_modes = [m // 2 for m in n_modes]
+        half_total_n_modes = [(m // 2) for m in n_modes]
         self.half_total_n_modes = half_total_n_modes
 
         # We use half_total_n_modes to build the full weights
@@ -301,12 +284,11 @@ class SpectralConv(BaseSpectralConv):
         self.n_layers = n_layers
         self.implementation = implementation
 
-        self.output_scaling_factor: Union[
-            None, List[List[float]]
-        ] = validate_scaling_factor(output_scaling_factor, self.order, n_layers)
-
+        self.output_scaling_factor: Union[None, List[List[float]]] = validate_scaling_factor(
+            output_scaling_factor, self.order, n_layers
+        )
         if init_std == "auto":
-            init_std = (2 / (in_channels + out_channels))**0.5
+            init_std = (2 / (in_channels + out_channels)) ** 0.5
         else:
             init_std = init_std
 
@@ -324,34 +306,30 @@ class SpectralConv(BaseSpectralConv):
             factorization = "Dense"  # No factorization
         if not factorization.lower().startswith("complex"):
             factorization = f"Complex{factorization}"
-
         if separable:
             if in_channels != out_channels:
                 raise ValueError(
-                    "To use separable Fourier Conv, in_channels must be equal "
-                    f"to out_channels, but got in_channels={in_channels} and "
-                    f"out_channels={out_channels}",
+                    f"To use separable Fourier Conv, in_channels must be equal to out_channels, but got in_channels={in_channels} and out_channels={out_channels}"
                 )
-            weight_shape = (in_channels, *half_total_n_modes)
+            weight_shape = in_channels, *half_total_n_modes
         else:
-            weight_shape = (in_channels, out_channels, *half_total_n_modes)
+            weight_shape = in_channels, out_channels, *half_total_n_modes
         self.separable = separable
-
         self.n_weights_per_layer = 2 ** (self.order - 1)
         tensor_kwargs = decomposition_kwargs if decomposition_kwargs is not None else {}
         if joint_factorization:
-            self.weight = FactorizedTensor.new(
+            self.weight = neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor.new(
                 (self.n_weights_per_layer * n_layers, *weight_shape),
                 rank=self.rank,
                 factorization=factorization,
                 fixed_rank_modes=fixed_rank_modes,
                 **tensor_kwargs,
             )
-            self.weight.normal_(0, init_std)
+            self.weight.normal_(mean=0, std=init_std)
         else:
-            self.weight = nn.LayerList(
-                [
-                    FactorizedTensor.new(
+            self.weight = paddle.nn.LayerList(
+                sublayers=[
+                    neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor.new(
                         weight_shape,
                         rank=self.rank,
                         factorization=factorization,
@@ -362,15 +340,14 @@ class SpectralConv(BaseSpectralConv):
                 ]
             )
             for w in self.weight:
-                w.normal_(0, init_std)
+                w.normal_(mean=0, std=init_std)
         self._contract = get_contract_fun(
             self.weight[0], implementation=implementation, separable=separable
         )
-
         if bias:
             self.bias = paddle.base.framework.EagerParamBase.from_tensor(
-                init_std
-                * paddle.randn([*((n_layers, self.out_channels) + (1,) * self.order)])
+                tensor=init_std
+                * paddle.randn(shape=(n_layers, self.out_channels) + (1,) * self.order)
             )
         else:
             self.bias = None
@@ -389,57 +366,43 @@ class SpectralConv(BaseSpectralConv):
     def incremental_n_modes(self, incremental_n_modes):
         if incremental_n_modes is None:
             self._incremental_n_modes = None
-            self.half_n_modes = [m // 2 for m in self.n_modes]
-
+            self.half_n_modes = [(m // 2) for m in self.n_modes]
         else:
             if isinstance(incremental_n_modes, int):
                 self._incremental_n_modes = [incremental_n_modes] * len(self.n_modes)
+            elif len(incremental_n_modes) == len(self.n_modes):
+                self._incremental_n_modes = incremental_n_modes
             else:
-                if len(incremental_n_modes) == len(self.n_modes):
-                    self._incremental_n_modes = incremental_n_modes
-                else:
-                    raise ValueError(
-                        f"Provided {incremental_n_modes} for actual "
-                        f"n_modes={self.n_modes}."
-                    )
+                raise ValueError(
+                    f"Provided {incremental_n_modes} for actual n_modes={self.n_modes}."
+                )
             self.weight_slices = [slice(None)] * 2 + [
                 slice(None, n // 2) for n in self._incremental_n_modes
             ]
-            self.half_n_modes = [m // 2 for m in self._incremental_n_modes]
+            self.weight_slices = tuple(self.weight_slices)
+            self.half_n_modes = [(m // 2) for m in self._incremental_n_modes]
 
     def transform(self, x, layer_index=0, output_shape=None):
-        in_shape = list(x.shape[2:])
-
+        in_shape = list(tuple(x.shape)[2:])
         if self.output_scaling_factor is not None and output_shape is None:
             out_shape = tuple(
-                [
-                    round(s * r)
-                    for (s, r) in zip(in_shape, self.output_scaling_factor[layer_index])
-                ]
+                [round(s * r) for s, r in zip(in_shape, self.output_scaling_factor[layer_index])]
             )
         elif output_shape is not None:
             out_shape = output_shape
         else:
             out_shape = in_shape
-
         if in_shape == out_shape:
             return x
         else:
-            return resample(
-                x,
-                1.0,
-                list(range(2, x.ndim)),
-                output_shape=out_shape,
-            )
+            return resample(x, 1.0, list(range(2, x.ndim)), output_shape=out_shape)
 
-    def forward(
-        self, x: paddle.Tensor, indices=0, output_shape: Optional[Tuple[int]] = None
-    ):
+    def forward(self, x: paddle.Tensor, indices=0, output_shape: Optional[Tuple[int]] = None):
         """Generic forward pass for the Factorized Spectral Conv
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : paddle.Tensor
             input activation of size (batch_size, channels, d1, ..., dN)
         indices : int, default is 0
             if joint_factorization, index of the layers for n_layers > 1
@@ -448,71 +411,53 @@ class SpectralConv(BaseSpectralConv):
         -------
         tensorized_spectral_conv(x)
         """
-        batchsize, channels, *mode_sizes = x.shape
-
+        batchsize, channels, *mode_sizes = tuple(x.shape)
         fft_size = list(mode_sizes)
         fft_size[-1] = fft_size[-1] // 2 + 1  # Redundant last coefficient
-
         # Compute Fourier coeffcients
         fft_dims = list(range(-self.order, 0))
-
         if self.fno_block_precision == "half":
-            x = x.astype('float16')
-
-        x = paddle.fft.rfftn(x, norm=self.fft_norm, axes=fft_dims)
-
+            x = x.astype(dtype="float16")
+        x = paddle.fft.rfftn(x=x, norm=self.fft_norm, axes=fft_dims)
         if self.fno_block_precision == "mixed":
             # if 'mixed', the above fft runs in full precision, but the
             # following operations run at half precision
-            # x = x.astype('complex32')
-            raise RuntimeError("TODO: support complex32")
-
+            # x = x.chalf()
+            raise NotImplementedError("complex32 not supported")
         if self.fno_block_precision in ["half", "mixed"]:
             # out_fft = paddle.zeros(
-            #     [batchsize, self.out_channels, *fft_size],
-            #     dtype=paddle.complex32,
+            #     shape=[batchsize, self.out_channels, *fft_size], dtype=torch.chalf
             # )
-            raise RuntimeError("TODO: support complex32")
+            raise NotImplementedError("complex32 not supported")
         else:
             out_fft = paddle.zeros(
-                [batchsize, self.out_channels, *fft_size],
-                dtype=paddle.complex64,
+                shape=[batchsize, self.out_channels, *fft_size], dtype="complex64"
             )
-
         # We contract all corners of the Fourier coefs
         # Except for the last mode: there, we take all coefs as redundant modes
         # were already removed
         mode_indexing = [((None, m), (-m, None)) for m in self.half_n_modes[:-1]] + [
             ((None, self.half_n_modes[-1]),)
         ]
-
         for i, boundaries in enumerate(itertools.product(*mode_indexing)):
             # Keep all modes for first 2 modes (batch-size and channels)
-            idx_tuple = tuple([slice(None), slice(None)] + [slice(*b) for b in boundaries])
-
+            idx_tuple = [slice(None), slice(None)] + [slice(*b) for b in boundaries]
             # For 2D: [:, :, :height, :width] and [:, :, -height:, width]
+            idx_tuple = tuple(idx_tuple)
             out_fft[idx_tuple] = self._contract(
                 x[idx_tuple],
                 self._get_weight(self.n_weights_per_layer * indices + i),
                 separable=self.separable,
             )
-
         if self.output_scaling_factor is not None and output_shape is None:
             mode_sizes = tuple(
-                [
-                    round(s * r)
-                    for (s, r) in zip(mode_sizes, self.output_scaling_factor[indices])
-                ]
+                [round(s * r) for s, r in zip(mode_sizes, self.output_scaling_factor[indices])]
             )
-
         if output_shape is not None:
             mode_sizes = output_shape
-
-        x = paddle.fft.irfftn(out_fft, s=mode_sizes, norm=self.fft_norm)
-
+        x = paddle.fft.irfftn(x=out_fft, s=mode_sizes, norm=self.fft_norm)
         if self.bias is not None:
             x = x + self.bias[indices, ...]
-
         return x
 
     def get_conv(self, indices):
@@ -532,7 +477,7 @@ class SpectralConv(BaseSpectralConv):
         return self.get_conv(indices)
 
 
-class SubConv(nn.Layer):
+class SubConv(paddle.nn.Layer):
     """Class representing one of the convolutions from the mother joint
     factorized convolution.
 
@@ -567,32 +512,24 @@ class SpectralConv1d(SpectralConv):
     """
 
     def forward(self, x, indices=0):
-        batchsize, channels, width = x.shape
-
-        x = paddle.fft.rfft(x, norm=self.fft_norm)
-
+        batchsize, channels, width = tuple(x.shape)
+        x = paddle.fft.rfft(x=x, norm=self.fft_norm)
         out_fft = paddle.zeros(
-            [batchsize, self.out_channels, width // 2 + 1],
-            dtype=paddle.complex64,
+            shape=[batchsize, self.out_channels, width // 2 + 1], dtype="complex64"
         )
         slices = (
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
             slice(self.half_n_modes[0]),  # :half_n_modes[0]]
         )
-        slices = tuple(slices)
-        out_fft[slices] = self._contract(
-            x[slices], self._get_weight(indices), separable=self.separable
+        out_fft[tuple(slices)] = self._contract(
+            x[tuple(slices)], self._get_weight(indices), separable=self.separable
         )
-
         if self.output_scaling_factor is not None:
             width = round(width * self.output_scaling_factor[0])
-
-        x = paddle.fft.irfft(out_fft, n=width, norm=self.fft_norm)
-
+        x = paddle.fft.irfft(x=out_fft, n=width, norm=self.fft_norm)
         if self.bias is not None:
             x = x + self.bias[indices, ...]
-
         return x
 
 
@@ -604,15 +541,12 @@ class SpectralConv2d(SpectralConv):
     """
 
     def forward(self, x, indices=0):
-        batchsize, channels, height, width = x.shape
-
-        x = paddle.fft.rfft2(x.astype('float'), norm=self.fft_norm)
-
+        batchsize, channels, height, width = tuple(x.shape)
+        x = paddle.fft.rfft2(x=x.astype(dtype="float32"), norm=self.fft_norm)
         # The output will be of size (batch_size, self.out_channels,
         # x.size(-2), x.size(-1)//2 + 1)
         out_fft = paddle.zeros(
-            [batchsize, self.out_channels, height, width // 2 + 1],
-            dtype=x.dtype,
+            shape=[batchsize, self.out_channels, height, width // 2 + 1], dtype=x.dtype
         )
 
         slices0 = (
@@ -621,33 +555,28 @@ class SpectralConv2d(SpectralConv):
             slice(self.half_n_modes[0]),  # :half_n_modes[0],
             slice(self.half_n_modes[1]),  # :half_n_modes[1]]
         )
+        slices0 = tuple(slices0)
         """Upper block (truncate high frequencies)."""
         out_fft[slices0] = self._contract(
             x[slices0], self._get_weight(2 * indices), separable=self.separable
         )
-
         slices1 = (
             slice(None),  # Equivalent to:        [:,
             slice(None),  # ...................... :,
             slice(-self.half_n_modes[0], None),  # -half_n_modes[0]:,
             slice(self.half_n_modes[1]),  # ...... :half_n_modes[1]]
         )
+        slices1 = tuple(slices1)
         """Lower block"""
         out_fft[slices1] = self._contract(
             x[slices1], self._get_weight(2 * indices + 1), separable=self.separable
         )
-
         if self.output_scaling_factor is not None:
             width = round(width * self.output_scaling_factor[indices][0])
             height = round(height * self.output_scaling_factor[indices][1])
-
-        x = paddle.fft.irfft2(
-            out_fft, s=(height, width), axes=(-2, -1), norm=self.fft_norm
-        )
-
+        x = paddle.fft.irfft2(x=out_fft, s=(height, width), axes=(-2, -1), norm=self.fft_norm)
         if self.bias is not None:
             x = x + self.bias[indices, ...]
-
         return x
 
 
@@ -659,15 +588,12 @@ class SpectralConv3d(SpectralConv):
     """
 
     def forward(self, x, indices=0):
-        batchsize, channels, height, width, depth = x.shape
-
-        x = paddle.fft.rfftn(x.astype('float'), norm=self.fft_norm, axes=[-3, -2, -1])
-
+        batchsize, channels, height, width, depth = tuple(x.shape)
+        x = paddle.fft.rfftn(x=x.astype(dtype="float32"), norm=self.fft_norm, axes=[-3, -2, -1])
         out_fft = paddle.zeros(
-            [batchsize, self.out_channels, height, width, depth // 2 + 1],
-            dtype=paddle.complex64,
+            shape=[batchsize, self.out_channels, height, width, depth // 2 + 1],
+            dtype="complex64",
         )
-
         slices0 = (
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
@@ -675,11 +601,11 @@ class SpectralConv3d(SpectralConv):
             slice(self.half_n_modes[1]),  # :half_n_modes[1],
             slice(self.half_n_modes[2]),  # :half_n_modes[2]]
         )
+        slices0 = tuple(slices0)
         """Upper block -- truncate high frequencies."""
         out_fft[slices0] = self._contract(
             x[slices0], self._get_weight(4 * indices + 0), separable=self.separable
         )
-
         slices1 = (
             slice(None),  # Equivalent to:        [:,
             slice(None),  # ...................... :,
@@ -687,11 +613,11 @@ class SpectralConv3d(SpectralConv):
             slice(-self.half_n_modes[1], None),  # -half_n_modes[1]:,
             slice(self.half_n_modes[2]),  # ...... :half_n_modes[0]]
         )
+        slices1 = tuple(slices1)
         """Low-pass filter for indices 2 & 4, and high-pass filter for index 3."""
         out_fft[slices1] = self._contract(
             x[slices1], self._get_weight(4 * indices + 1), separable=self.separable
         )
-
         slices2 = (
             slice(None),  # Equivalent to:        [:,
             slice(None),  # ...................... :,
@@ -699,6 +625,7 @@ class SpectralConv3d(SpectralConv):
             slice(self.half_n_modes[1]),  # ...... :half_n_modes[1],
             slice(self.half_n_modes[2]),  # ...... :half_n_modes[2]]
         )
+        slices2 = tuple(slices2)
         """Low-pass filter for indices 3 & 4, and high-pass filter for index 2."""
         out_fft[slices2] = self._contract(
             x[slices2], self._get_weight(4 * indices + 2), separable=self.separable
@@ -711,19 +638,17 @@ class SpectralConv3d(SpectralConv):
             slice(-self.half_n_modes[1], None),  # -half_n_modes[1],
             slice(self.half_n_modes[2]),  # ...... :half_n_modes[2]]
         )
+        slices3 = tuple(slices3)
         """Lower block -- low-cut filter in indices 2 & 3
         and high-cut filter in index 4."""
         out_fft[slices3] = self._contract(
             x[slices3], self._get_weight(4 * indices + 3), separable=self.separable
         )
-
         if self.output_scaling_factor is not None:
             width = round(width * self.output_scaling_factor[0])
             height = round(height * self.output_scaling_factor[1])
             depth = round(depth * self.output_scaling_factor[2])
-
-        x = paddle.fft.irfftn(out_fft, s=(height, width, depth), norm=self.fft_norm)
-
+        x = paddle.fft.irfftn(x=out_fft, s=(height, width, depth), norm=self.fft_norm)
         if self.bias is not None:
             x = x + self.bias[indices, ...]
         return x

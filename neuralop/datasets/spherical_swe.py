@@ -1,7 +1,9 @@
+from math import ceil, floor
+
 import paddle
 from paddle.io import DataLoader
 
-# from torch_harmonics.examples import ShallowWaterSolver
+from paddle_harmonics.examples import ShallowWaterSolver
 
 
 def load_spherical_swe(
@@ -63,46 +65,44 @@ class SphericalSWEDataset(paddle.io.DataLoader):
         normalize=True,
         stream=None,
     ):
-        raise NotImplementedError("torch_harmonics is not supported on paddle.")
+        # Caution: this is a heuristic which can break and lead to diverging results
+        dt_min = 256 / dims[0] * 150
+        nsteps = int(floor(dt / dt_min))
 
-        # # Caution: this is a heuristic which can break and lead to diverging results
-        # dt_min = 256 / dims[0] * 150
-        # nsteps = int(floor(dt / dt_min))
+        self.num_examples = num_examples
+        self.device = device
+        self.stream = stream
 
-        # self.num_examples = num_examples
-        # self.device = device
-        # self.stream = stream
+        self.nlat = dims[0]
+        self.nlon = dims[1]
 
-        # self.nlat = dims[0]
-        # self.nlon = dims[1]
+        # number of solver steps used to compute the target
+        self.nsteps = nsteps
+        self.normalize = normalize
 
-        # # number of solver steps used to compute the target
-        # self.nsteps = nsteps
-        # self.normalize = normalize
+        lmax = ceil(self.nlat / 3)
+        mmax = lmax
+        dt_solver = dt / float(self.nsteps)
 
-        # lmax = ceil(self.nlat / 3)
-        # mmax = lmax
-        # dt_solver = dt / float(self.nsteps)
+        self.solver = (
+            ShallowWaterSolver(
+                self.nlat,
+                self.nlon,
+                dt_solver,
+                lmax=lmax,
+                mmax=mmax,
+                grid="equiangular",
+            )
+            .to(self.device)
+            .float()
+        )
 
-        # self.solver = (
-        #     ShallowWaterSolver(
-        #         self.nlat,
-        #         self.nlon,
-        #         dt_solver,
-        #         lmax=lmax,
-        #         mmax=mmax,
-        #         grid="equiangular",
-        #     )
-        #     .to(self.device)
-        #     .float()
-        # )
+        self.set_initial_condition(ictype=initial_condition)
 
-        # self.set_initial_condition(ictype=initial_condition)
-
-        # if self.normalize:
-        #     inp0, _ = self._get_sample()
-        #     self.inp_mean = paddle.mean(inp0, axis=(-1, -2)).reshape(-1, 1, 1)
-        #     self.inp_var = paddle.var(inp0, axis=(-1, -2)).reshape(-1, 1, 1)
+        if self.normalize:
+            inp0, _ = self._get_sample()
+            self.inp_mean = paddle.mean(inp0, axis=(-1, -2)).reshape(-1, 1, 1)
+            self.inp_var = paddle.var(inp0, axis=(-1, -2)).reshape(-1, 1, 1)
 
     def __len__(self):
         length = self.num_examples if self.ictype == "random" else 1

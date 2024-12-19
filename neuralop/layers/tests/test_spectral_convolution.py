@@ -37,7 +37,7 @@ def test_SpectralConv(factorization, implementation):
         res = conv(x)
         res_shape = res.shape
 
-        assert paddle.allclose(res_dense, res, rtol=1e-5, atol=1e-6).item()
+        assert paddle.allclose(res_dense, res, atol=1e-6).item()
 
         # Dynamically reduce the number of modes in Fourier space
         conv.n_modes = incremental_modes[:dim]
@@ -110,7 +110,7 @@ def test_SpectralConv3D(factorization, implementation):
     x = paddle.randn([2, 3, 12, 12, 12])
     res_dense = conv_dense(x)
     res = conv(x)
-    assert paddle.allclose(res_dense, res, rtol=1e-5, atol=1e-6).item()
+    assert paddle.allclose(res_dense, res, atol=1e-6).item()
 
 
 @pytest.mark.parametrize('factorization', ['ComplexCP', 'ComplexTucker', 'ComplexDense'])
@@ -138,7 +138,7 @@ def test_SpectralConv2D(factorization, implementation):
     x = paddle.randn([2, 10, 12, 12])
     res_dense = conv_dense(x)
     res = conv(x)
-    assert paddle.allclose(res_dense, res, rtol=1e-5, atol=1e-6).item()
+    assert paddle.allclose(res_dense, res, atol=1e-6).item()
 
 
 @pytest.mark.parametrize('factorization', ['ComplexCP', 'ComplexTucker'])
@@ -163,4 +163,4 @@ def test_SpectralConv1D(factorization, implementation):
     x = paddle.randn([2, 10, 12])
     res_dense = conv_dense(x)
     res = conv(x)
-    assert paddle.allclose(res_dense, res, rtol=1e-5, atol=1e-6).item()
+    assert paddle.allclose(res_dense, res, atol=1e-6).item()

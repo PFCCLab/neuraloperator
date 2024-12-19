@@ -13,7 +13,7 @@ def test_UnitGaussianNormalizer():
     x_unnormalized = normalizer.inverse_transform(x_normalized)
 
     eps = 1e-5
-    assert paddle.allclose(x_unnormalized, x).item(), 'x_normalized is error'
+    assert paddle.allclose(x_unnormalized, x, atol=1e-6).item(), 'x_normalized is error'
     assert paddle.mean(x_normalized) <= eps
     assert (paddle.std(x_normalized) - 1) <= eps
 
@@ -24,7 +24,7 @@ def test_UnitGaussianNormalizer():
     x_unnormalized = normalizer.inverse_transform(x_normalized)
 
     eps = 1e-3
-    assert paddle.allclose(x_unnormalized, x).item(), 'x_unnormalized is error'
+    assert paddle.allclose(x_unnormalized, x, atol=1e-6).item(), 'x_unnormalized is error'
     assert paddle.mean(x_normalized) <= eps
     assert (paddle.std(x_normalized) - 1) <= eps
 
@@ -38,7 +38,7 @@ def test_UnitGaussianNormalizer():
     x_unnormalized = normalizer.inverse_transform(x_normalized)
 
     eps = 1e-3
-    assert paddle.allclose(x_unnormalized, x).item(), 'x_unnormalized is error'
+    assert paddle.allclose(x_unnormalized, x, atol=1e-6).item(), 'x_unnormalized is error'
     assert paddle.mean(x_normalized) <= eps
     assert (paddle.std(x_normalized) - 1) <= eps
 

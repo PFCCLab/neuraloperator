@@ -6,7 +6,7 @@ import paddle
 
 def test_DefaultDataProcessor():
     if paddle.device.is_compiled_with_cuda():
-        device = 'cuda'
+        device = 'gpu'
     else:
         device = 'cpu'
     paddle.device.set_device(device=device)
