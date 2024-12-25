@@ -1,6 +1,8 @@
+import math
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
+import ppsci
 
 from ..layers.fno_block import FNOBlocks
 from ..layers.mlp import MLP
@@ -8,6 +10,19 @@ from ..layers.padding import DomainPadding
 from ..layers.resample import resample
 from ..layers.skip_connections import skip_connection
 from ..layers.spectral_convolution import SpectralConv
+
+
+def kaiming_init(layer):
+    if isinstance(layer, (nn.layer.conv._ConvNd, nn.Linear)):
+        print(f"layer: {layer} ")
+        init_kaimingUniform = paddle.nn.initializer.KaimingUniform(nonlinearity='leaky_relu', negative_slope=math.sqrt(5))
+        init_kaimingUniform(layer.weight)
+        if layer.bias is not None:
+            fan_in, _ = ppsci.utils.initializer._calculate_fan_in_and_fan_out(layer.weight)
+            if fan_in != 0:
+                bound = 1 / math.sqrt(fan_in)
+                init_uniform = paddle.nn.initializer.Uniform(low=-bound, high=bound)
+            init_uniform(layer.bias)
 
 
 class UNO(nn.Layer):
@@ -278,6 +293,8 @@ class UNO(nn.Layer):
             n_dim=self.n_dim,
             non_linearity=non_linearity,
         )
+
+        self.apply(kaiming_init)
 
     def forward(self, x, **kwargs):
         x = self.lifting(x)
