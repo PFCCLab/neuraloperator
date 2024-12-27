@@ -32,12 +32,9 @@ Installation
    pip install -U --index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/Triton-Nightly/pypi/simple/ triton-nightly
 
    # install paddle_harmonics
-   git clone https://github.com/co63oc/PaddleScience.git
-   cd PaddleScience
-   git checkout fix2
-   cd jointContribution/paddle_harmonics
+   git clone https://github.com/PFCCLab/paddle_harmonics.git
+   cd paddle_harmonics
    pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
-   export PYTHONPATH=</path to/PaddleScience/jointContribution/paddle_harmonics>:$PYTHONPATH
 
    # install nightly-build ppsci
    python -m pip install https://paddle-qa.bj.bcebos.com/PaddleScience/whl/latest/dist/paddlesci-0.0.0-py3-none-any.whl -i https://pypi.tuna.tsinghua.edu.cn/simple
