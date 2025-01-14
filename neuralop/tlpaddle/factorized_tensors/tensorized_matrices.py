@@ -79,7 +79,7 @@ class DenseTensorized(DenseTensor, TensorizedTensor, name="Dense"):
             indices = [indices]
 
         output_shape = []  # number of dimensions to combine
-        for (index, shape) in zip(indices, self.tensorized_shape):
+        for index, shape in zip(indices, self.tensorized_shape):
             if isinstance(shape, int):
                 # We are indexing a "regular" mode
                 if isinstance(index, (np.integer, int)):
@@ -176,7 +176,7 @@ class CPTensorized(CPTensor, TensorizedTensor, name="CP"):
         factors = self.factors
         weights = self.weights
 
-        for (index, shape) in zip(indices, self.tensorized_shape):
+        for index, shape in zip(indices, self.tensorized_shape):
             if isinstance(shape, int):
                 # We are indexing a "regular" mode
                 factor, *factors = factors
@@ -291,7 +291,7 @@ class TuckerTensorized(TensorizedTensor, TuckerTensor, name="Tucker"):
 
         core = self.core
 
-        for (index, shape) in zip(indices, self.tensorized_shape):
+        for index, shape in zip(indices, self.tensorized_shape):
             if isinstance(shape, int):
                 if index is Ellipsis:
                     raise ValueError(
@@ -503,7 +503,7 @@ class BlockTT(TensorizedTensor, name="BlockTT"):
         )  # index previous dimensions with [:], to avoid using .take(dim=k)
         add_pad = False  # whether to increment the padding post indexing
 
-        for (index, shape) in zip(indices, self.tensorized_shape):
+        for index, shape in zip(indices, self.tensorized_shape):
             if isinstance(shape, int):
                 # We are indexing a "batched" mode, not a tensorized one
                 if not isinstance(index, (np.integer, int)):

@@ -168,7 +168,7 @@ def load_navier_stokes_pt(
     )
 
     test_loaders = {train_resolution: test_loader}
-    for (res, n_test, test_batch_size) in zip(
+    for res, n_test, test_batch_size in zip(
         test_resolutions, n_tests, test_batch_sizes
     ):
         print(

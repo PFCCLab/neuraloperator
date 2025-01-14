@@ -1,20 +1,26 @@
-
 import paddle
 import time
 from tensorly import tenalg
-tenalg.set_backend('einsum')
+
+tenalg.set_backend("einsum")
 from pathlib import Path
 
 from configmypy import ConfigPipeline, YamlConfig
 from neuralop import get_model
 
+
 def test_from_config():
     """Test forward/backward from a config file"""
     # Read the configuration
-    config_name = 'default'
+    config_name = "default"
     config_path = Path(__file__).parent.as_posix()
-    pipe = ConfigPipeline([YamlConfig('./test_config.yaml', config_name=config_name, config_folder=config_path),
-                        ])
+    pipe = ConfigPipeline(
+        [
+            YamlConfig(
+                "./test_config.yaml", config_name=config_name, config_folder=config_path
+            ),
+        ]
+    )
     config = pipe.read_conf()
     config_name = pipe.steps[-1].config_name
 
@@ -22,9 +28,9 @@ def test_from_config():
     size = config.data.size
 
     if paddle.device.cuda.device_count() >= 1:
-        device = 'gpu'
+        device = "gpu"
     else:
-        device = 'cpu'
+        device = "cpu"
 
     paddle.device.set_device(device=device)
 
@@ -38,7 +44,7 @@ def test_from_config():
     t1 = time.time()
     out = model(in_data)
     t = time.time() - t1
-    print(f'Output of size {out.shape} in {t}.')
+    print(f"Output of size {out.shape} in {t}.")
 
     loss = out.sum()
     loss.backward()

@@ -111,7 +111,6 @@ class Trainer:
         training_loss=None,
         eval_losses=None,
     ):
-
         """Trains the given model on the given datasets.
         params:
         train_loader: torch.utils.data.DataLoader

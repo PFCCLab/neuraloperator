@@ -15,10 +15,14 @@ from ..layers.spectral_convolution import SpectralConv
 def kaiming_init(layer):
     if isinstance(layer, (nn.layer.conv._ConvNd, nn.Linear)):
         print(f"layer: {layer} ")
-        init_kaimingUniform = paddle.nn.initializer.KaimingUniform(nonlinearity='leaky_relu', negative_slope=math.sqrt(5))
+        init_kaimingUniform = paddle.nn.initializer.KaimingUniform(
+            nonlinearity="leaky_relu", negative_slope=math.sqrt(5)
+        )
         init_kaimingUniform(layer.weight)
         if layer.bias is not None:
-            fan_in, _ = ppsci.utils.initializer._calculate_fan_in_and_fan_out(layer.weight)
+            fan_in, _ = ppsci.utils.initializer._calculate_fan_in_and_fan_out(
+                layer.weight
+            )
             if fan_in != 0:
                 bound = 1 / math.sqrt(fan_in)
                 init_uniform = paddle.nn.initializer.Uniform(low=-bound, high=bound)
@@ -141,7 +145,7 @@ class UNO(nn.Layer):
         fft_norm="forward",
         normalizer=None,
         verbose=False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.n_layers = n_layers

@@ -19,6 +19,7 @@ import tensorly as tl
 from tensorly.plugins import use_opt_einsum
 
 from .base_spectral_conv import BaseSpectralConv
+
 # from .einsum_utils import einsum_complexhalf  # noqa
 from .resample import resample
 
@@ -125,7 +126,13 @@ def _contract_tt(x, tt_weight, separable=False):
     tt_syms = []
     for i, s in enumerate(weight_syms):
         tt_syms.append([rank_syms[i], s, rank_syms[i + 1]])
-    eq = "".join(x_syms) + "," + ",".join("".join(f) for f in tt_syms) + "->" + "".join(out_syms)
+    eq = (
+        "".join(x_syms)
+        + ","
+        + ",".join("".join(f) for f in tt_syms)
+        + "->"
+        + "".join(out_syms)
+    )
     # if x.dtype == torch.complex32:
     #     return einsum_complexhalf(eq, x, *tt_weight.factors)
     # else:
@@ -159,7 +166,9 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
     elif implementation == "factorized":
         if paddle.is_tensor(x=weight):
             return _contract_dense
-        elif isinstance(weight, neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor):
+        elif isinstance(
+            weight, neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor
+        ):
             if weight.name.lower().endswith("dense"):
                 return _contract_dense
             elif weight.name.lower().endswith("tucker"):
@@ -171,7 +180,9 @@ def get_contract_fun(weight, implementation="reconstructed", separable=False):
             else:
                 raise ValueError(f"Got unexpected factorized weight type {weight.name}")
         else:
-            raise ValueError(f"Got unexpected weight type of class {weight.__class__.__name__}")
+            raise ValueError(
+                f"Got unexpected weight type of class {weight.__class__.__name__}"
+            )
     else:
         raise ValueError(
             f'Got implementation={implementation}, expected "reconstructed" or "factorized"'
@@ -284,8 +295,8 @@ class SpectralConv(BaseSpectralConv):
         self.n_layers = n_layers
         self.implementation = implementation
 
-        self.output_scaling_factor: Union[None, List[List[float]]] = validate_scaling_factor(
-            output_scaling_factor, self.order, n_layers
+        self.output_scaling_factor: Union[None, List[List[float]]] = (
+            validate_scaling_factor(output_scaling_factor, self.order, n_layers)
         )
         if init_std == "auto":
             init_std = (2 / (in_channels + out_channels)) ** 0.5
@@ -318,12 +329,14 @@ class SpectralConv(BaseSpectralConv):
         self.n_weights_per_layer = 2 ** (self.order - 1)
         tensor_kwargs = decomposition_kwargs if decomposition_kwargs is not None else {}
         if joint_factorization:
-            self.weight = neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor.new(
-                (self.n_weights_per_layer * n_layers, *weight_shape),
-                rank=self.rank,
-                factorization=factorization,
-                fixed_rank_modes=fixed_rank_modes,
-                **tensor_kwargs,
+            self.weight = (
+                neuralop.tlpaddle.factorized_tensors.core.FactorizedTensor.new(
+                    (self.n_weights_per_layer * n_layers, *weight_shape),
+                    rank=self.rank,
+                    factorization=factorization,
+                    fixed_rank_modes=fixed_rank_modes,
+                    **tensor_kwargs,
+                )
             )
             self.weight.normal_(mean=0, std=init_std)
         else:
@@ -386,7 +399,10 @@ class SpectralConv(BaseSpectralConv):
         in_shape = list(tuple(x.shape)[2:])
         if self.output_scaling_factor is not None and output_shape is None:
             out_shape = tuple(
-                [round(s * r) for s, r in zip(in_shape, self.output_scaling_factor[layer_index])]
+                [
+                    round(s * r)
+                    for s, r in zip(in_shape, self.output_scaling_factor[layer_index])
+                ]
             )
         elif output_shape is not None:
             out_shape = output_shape
@@ -397,7 +413,9 @@ class SpectralConv(BaseSpectralConv):
         else:
             return resample(x, 1.0, list(range(2, x.ndim)), output_shape=out_shape)
 
-    def forward(self, x: paddle.Tensor, indices=0, output_shape: Optional[Tuple[int]] = None):
+    def forward(
+        self, x: paddle.Tensor, indices=0, output_shape: Optional[Tuple[int]] = None
+    ):
         """Generic forward pass for the Factorized Spectral Conv
 
         Parameters
@@ -451,7 +469,10 @@ class SpectralConv(BaseSpectralConv):
             )
         if self.output_scaling_factor is not None and output_shape is None:
             mode_sizes = tuple(
-                [round(s * r) for s, r in zip(mode_sizes, self.output_scaling_factor[indices])]
+                [
+                    round(s * r)
+                    for s, r in zip(mode_sizes, self.output_scaling_factor[indices])
+                ]
             )
         if output_shape is not None:
             mode_sizes = output_shape
@@ -466,7 +487,9 @@ class SpectralConv(BaseSpectralConv):
         The parametrization of sub-convolutional layers is shared with the main one.
         """
         if self.n_layers == 1:
-            Warning("A single convolution is parametrized, directly use the main class.")
+            Warning(
+                "A single convolution is parametrized, directly use the main class."
+            )
             # raise ValueError(
             #     "A single convolution is parametrized, directly use the main class."
             # )
@@ -574,7 +597,9 @@ class SpectralConv2d(SpectralConv):
         if self.output_scaling_factor is not None:
             width = round(width * self.output_scaling_factor[indices][0])
             height = round(height * self.output_scaling_factor[indices][1])
-        x = paddle.fft.irfft2(x=out_fft, s=(height, width), axes=(-2, -1), norm=self.fft_norm)
+        x = paddle.fft.irfft2(
+            x=out_fft, s=(height, width), axes=(-2, -1), norm=self.fft_norm
+        )
         if self.bias is not None:
             x = x + self.bias[indices, ...]
         return x
@@ -589,7 +614,9 @@ class SpectralConv3d(SpectralConv):
 
     def forward(self, x, indices=0):
         batchsize, channels, height, width, depth = tuple(x.shape)
-        x = paddle.fft.rfftn(x=x.astype(dtype="float32"), norm=self.fft_norm, axes=[-3, -2, -1])
+        x = paddle.fft.rfftn(
+            x=x.astype(dtype="float32"), norm=self.fft_norm, axes=[-3, -2, -1]
+        )
         out_fft = paddle.zeros(
             shape=[batchsize, self.out_channels, height, width, depth // 2 + 1],
             dtype="complex64",

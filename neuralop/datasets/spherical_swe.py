@@ -32,7 +32,7 @@ def load_spherical_swe(
     )
 
     test_loaders = dict()
-    for (res, n_test, test_batch_size) in zip(
+    for res, n_test, test_batch_size in zip(
         test_resolutions, n_tests, test_batch_sizes
     ):
         print(

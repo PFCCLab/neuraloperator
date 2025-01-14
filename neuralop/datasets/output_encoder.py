@@ -224,9 +224,7 @@ class UnitGaussianNormalizer(Transform):
         if self.mask is None:
             self.n_elements = count_tensor_params(data_batch, self.dim)
             self.mean = paddle.mean(data_batch, axis=self.dim, keepdim=True)
-            self.squared_mean = paddle.mean(
-                data_batch**2, axis=self.dim, keepdim=True
-            )
+            self.squared_mean = paddle.mean(data_batch**2, axis=self.dim, keepdim=True)
             self.std = paddle.sqrt(self.squared_mean - self.mean**2)
         else:
             batch_size = data_batch.shape[0]

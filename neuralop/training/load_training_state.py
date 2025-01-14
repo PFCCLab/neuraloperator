@@ -2,6 +2,7 @@
 Snippet to load all artifacts of training state as Modules
 without constraining to use inside a default Trainer
 """
+
 from pathlib import Path
 from typing import Union
 

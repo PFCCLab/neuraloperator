@@ -305,9 +305,9 @@ class SpectralConv(BaseSpectralConv):
         self.n_layers = n_layers
         self.implementation = implementation
 
-        self.output_scaling_factor: Union[
-            None, List[List[float]]
-        ] = validate_scaling_factor(output_scaling_factor, self.order, n_layers)
+        self.output_scaling_factor: Union[None, List[List[float]]] = (
+            validate_scaling_factor(output_scaling_factor, self.order, n_layers)
+        )
 
         if init_std == "auto":
             init_std = (2 / (in_channels + out_channels)) ** 0.5
@@ -611,7 +611,7 @@ class SpectralConv2d(SpectralConv):
     def forward(self, x, indices=0):
         batchsize, channels, height, width = x.shape
 
-        x = paddle.fft.rfft2(x.astype('float32'), norm=self.fft_norm, axes=(-2, -1))
+        x = paddle.fft.rfft2(x.astype("float32"), norm=self.fft_norm, axes=(-2, -1))
 
         # The output will be of size (batch_size, self.out_channels,
         # x.size(-2), x.size(-1)//2 + 1)
@@ -667,7 +667,7 @@ class SpectralConv3d(SpectralConv):
     def forward(self, x, indices=0):
         batchsize, channels, height, width, depth = x.shape
 
-        x = paddle.fft.rfftn(x.astype('float32'), norm=self.fft_norm, axes=[-3, -2, -1])
+        x = paddle.fft.rfftn(x.astype("float32"), norm=self.fft_norm, axes=[-3, -2, -1])
 
         out_fft = paddle.zeros(
             [batchsize, self.out_channels, height, width, depth // 2 + 1],
