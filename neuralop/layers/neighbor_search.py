@@ -33,10 +33,10 @@ class NeighborSearch(nn.Layer):
 
         Parameters
         ----------
-        data : torch.Tensor of shape [n, d]
+        data : paddle.Tensor of shape [n, d]
             Search space of possible neighbors
             NOTE: open3d requires d=3
-        queries : torch.Tensor of shape [m, d]
+        queries : paddle.Tensor of shape [m, d]
             Point for which to find neighbors
             NOTE: open3d requires d=3
         radius : float
@@ -46,13 +46,13 @@ class NeighborSearch(nn.Layer):
         ----------
         return_dict : dict
             Dictionary with keys: neighbors_index, neighbors_row_splits
-                neighbors_index: torch.Tensor with dtype=torch.int64
+                neighbors_index: paddle.Tensor with dtype=torch.int64
                     Index of each neighbor in data for every point
                     in queries. Neighbors are ordered in the same orderings
                     as the points in queries. Open3d and torch_cluster
                     implementations can differ by a permutation of the
                     neighbors for every point.
-                neighbors_row_splits: torch.Tensor of shape [m+1] with dtype=torch.int64
+                neighbors_row_splits: paddle.Tensor of shape [m+1] with dtype=torch.int64
                     The value at index j is the sum of the number of
                     neighbors up to query point j-1. First element is 0
                     and last element is the total number of neighbors.

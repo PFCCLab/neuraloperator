@@ -169,7 +169,7 @@ class MGPatchingDataProcessor(paddle.nn.Layer):
         data_dict: dict
             dictionary keyed with 'x', 'y' etc
             represents one batch of data input to a model
-        out: torch.Tensor
+        out: paddle.Tensor
             model output predictions
         """
         y = data_dict["y"]

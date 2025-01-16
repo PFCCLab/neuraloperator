@@ -18,7 +18,7 @@ def trl(x, weight, bias=None, **kwargs):
         batch of inputs
     weight : FactorizedTensor
         factorized weights of the TRL
-    bias : torch.Tensor, optional
+    bias : paddle.Tensor, optional
         1D tensor, by default None
 
     Returns

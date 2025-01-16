@@ -173,7 +173,7 @@ class UnitGaussianNormalizer(Transform):
                 For instance, to normalize data of shape ``(batch_size, channels, height, width)``
                 along batch-size, height and width, pass ``dim=[0, 2, 3]``
 
-        mask : torch.Tensor or None, default is None
+        mask : paddle.Tensor or None, default is None
             If not None, a tensor with the same size as a sample,
             with value 0 where the data should be ignored and 1 everywhere else
 

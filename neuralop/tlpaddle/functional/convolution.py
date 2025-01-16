@@ -23,9 +23,9 @@ def convolve(x, weight, bias=None, stride=1, padding=0, dilation=1, groups=1):
 
     Parameters
     ----------
-    x : torch.Tensor or FactorizedTensor
+    x : paddle.Tensor or FactorizedTensor
         input tensor
-    weight : torch.Tensor
+    weight : paddle.Tensor
         convolutional weights
     bias : bool, optional
         by default None
@@ -40,7 +40,7 @@ def convolve(x, weight, bias=None, stride=1, padding=0, dilation=1, groups=1):
 
     Returns
     -------
-    torch.Tensor
+    paddle.Tensor
         `x` convolved with `weight`
     """
     try:

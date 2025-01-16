@@ -310,7 +310,7 @@ class TuckerTensor(FactorizedTensor, name="Tucker"):
 
         Parameters
         ----------
-        tensor : torch.Tensor
+        tensor : paddle.Tensor
             full tensor to decompose
         unsqueezed_modes : int list
             list of modes for which the rank is 1 that don't correspond to a mode in the full tensor

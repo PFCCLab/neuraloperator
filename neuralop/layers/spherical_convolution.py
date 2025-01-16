@@ -457,7 +457,7 @@ class SphericalConv(BaseSpectralConv):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : paddle.Tensor
             input activation of size (batch_size, channels, d1, ..., dN)
         indices : int, default is 0
             if joint_factorization, index of the layers for n_layers > 1

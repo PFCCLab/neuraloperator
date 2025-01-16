@@ -12,9 +12,9 @@ def simple_neighbor_search(data: paddle.Tensor, queries: paddle.Tensor, radius: 
     Parameters
     ----------
     Density-Based Spatial Clustering of Applications with Noise
-    data : torch.Tensor
+    data : paddle.Tensor
         vector of data points from which to find neighbors
-    queries : torch.Tensor
+    queries : paddle.Tensor
         centers of neighborhoods
     radius : float
         size of each neighborhood

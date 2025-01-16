@@ -31,7 +31,7 @@ class AdaIN(nn.Layer):
 
         mlp = self.mlp(self.embedding)
         # torch.split and paddle.split are different, as following:
-        # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/model_convert/convert_from_pytorch/api_difference/Tensor/torch.Tensor.permute.html
+        # https://www.paddlepaddle.org.cn/documentation/docs/zh/guides/model_convert/convert_from_pytorch/api_difference/Tensor/paddle.Tensor.permute.html
         weight, bias = paddle.split(mlp, (mlp.shape[0]) // self.in_channels, axis=0)
 
         return nn.functional.group_norm(

@@ -18,7 +18,7 @@ def tensor_init(tensor, std=0.02):
 
     Parameters
     ----------
-    tensor : torch.Tensor or FactorizedTensor
+    tensor : paddle.Tensor or FactorizedTensor
     std : float, default is 0.02
         the desired standard deviation of the full (reconstructed) tensor
     """
@@ -30,7 +30,7 @@ def tensor_init(tensor, std=0.02):
         tensor.normal_(0, std)
     else:
         raise ValueError(
-            f"Got tensor of class {tensor.__class__.__name__} but expected torch.Tensor or FactorizedWeight."
+            f"Got tensor of class {tensor.__class__.__name__} but expected paddle.Tensor or FactorizedWeight."
         )
 
 
