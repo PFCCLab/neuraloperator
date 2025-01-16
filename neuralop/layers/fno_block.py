@@ -52,9 +52,9 @@ class FNOBlocks(nn.Layer):
         self._n_modes = n_modes
         self.n_dim = len(n_modes)
 
-        self.output_scaling_factor: Union[
-            None, List[List[float]]
-        ] = validate_scaling_factor(output_scaling_factor, self.n_dim, n_layers)
+        self.output_scaling_factor: Union[None, List[List[float]]] = (
+            validate_scaling_factor(output_scaling_factor, self.n_dim, n_layers)
+        )
 
         self.max_n_modes = max_n_modes
         self.fno_block_precision = fno_block_precision

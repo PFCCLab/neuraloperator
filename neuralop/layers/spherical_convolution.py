@@ -342,9 +342,9 @@ class SphericalConv(BaseSpectralConv):
         self.n_layers = n_layers
         self.implementation = implementation
 
-        self.output_scaling_factor: Union[
-            None, List[List[float]]
-        ] = validate_scaling_factor(output_scaling_factor, self.order, n_layers)
+        self.output_scaling_factor: Union[None, List[List[float]]] = (
+            validate_scaling_factor(output_scaling_factor, self.order, n_layers)
+        )
 
         if init_std == "auto":
             init_std = (2 / (in_channels + out_channels)) ** 0.5

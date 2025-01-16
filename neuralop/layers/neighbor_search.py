@@ -64,9 +64,9 @@ class NeighborSearch(nn.Layer):
             return_dict["neighbors_index"] = search_return.neighbors_index.astype(
                 "int64"
             )
-            return_dict[
-                "neighbors_row_splits"
-            ] = search_return.neighbors_row_splits.astype("int64")
+            return_dict["neighbors_row_splits"] = (
+                search_return.neighbors_row_splits.astype("int64")
+            )
 
         else:
             return_dict = self.search_fn(data, queries, radius)

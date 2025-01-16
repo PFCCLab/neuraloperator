@@ -42,14 +42,12 @@ def resample(x, res_scale, axis, output_shape=None):
     if len(axis) == 2:
         return F.interpolate(x, size=new_size, mode="bicubic", align_corners=True)
 
-    X = paddle.fft.rfftn(x.astype('float32'), norm="forward", axes=axis)
+    X = paddle.fft.rfftn(x.astype("float32"), norm="forward", axes=axis)
 
     new_fft_size = list(new_size)
     new_fft_size[-1] = new_fft_size[-1] // 2 + 1  # Redundant last coefficient
     new_fft_size_c = [min(i, j) for (i, j) in zip(new_fft_size, X.shape[-len(axis) :])]
-    out_fft = paddle.zeros(
-        [x.shape[0], x.shape[1], *new_fft_size], dtype="complex64"
-    )
+    out_fft = paddle.zeros([x.shape[0], x.shape[1], *new_fft_size], dtype="complex64")
 
     mode_indexing = [((None, m // 2), (-m // 2, None)) for m in new_fft_size_c[:-1]] + [
         ((None, new_fft_size_c[-1]),)

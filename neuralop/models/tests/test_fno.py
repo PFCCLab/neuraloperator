@@ -10,13 +10,15 @@ from tensorly import tenalg
 tenalg.set_backend("einsum")
 
 
-@pytest.mark.parametrize("factorization", ["ComplexTucker"])
-@pytest.mark.parametrize("implementation", ["factorized"])
-@pytest.mark.parametrize("n_dim", [1])
-@pytest.mark.parametrize("fno_block_precision", ["full"])
-@pytest.mark.parametrize("stabilizer", [None])
-@pytest.mark.parametrize("lifting_channels", [None])
-@pytest.mark.parametrize("preactivation", [False])
+@pytest.mark.parametrize(
+    "factorization", ["ComplexDense", "ComplexTucker", "ComplexCP", "ComplexTT"]
+)
+@pytest.mark.parametrize("implementation", ["factorized", "reconstructed"])
+@pytest.mark.parametrize("n_dim", [1, 2, 3])
+@pytest.mark.parametrize("fno_block_precision", ["full", "half", "mixed"])
+@pytest.mark.parametrize("stabilizer", [None, "tanh"])
+@pytest.mark.parametrize("lifting_channels", [None, 256])
+@pytest.mark.parametrize("preactivation", [False, True])
 def test_tfno(
     factorization,
     implementation,
@@ -39,15 +41,17 @@ def test_tfno(
     else:
         device = "cpu"
         fno_block_precision = "full"
-        s = 16
-        modes = 5
-        width = 15
-        fc_channels = 32
-        batch_size = 3
-        n_layers = 2
 
-        use_mlp = True
-        mlp = Bunch(dict(expansion=0.5, dropout=0))
+    # there are not enough memory to run the test on gpu of 32GB by default parameters
+    s = 16
+    modes = 5
+    width = 15
+    fc_channels = 32
+    batch_size = 3
+    n_layers = 2
+
+    use_mlp = True
+    mlp = Bunch(dict(expansion=0.5, dropout=0))
 
     paddle.set_device(device)
     rank = 0.2

@@ -47,7 +47,9 @@ def einsum_complexhalf(eq, *args):
 
     # find the optimal path
     _, path_info = opt_einsum.contract_path(eq, *args)
-    partial_eqns = [contraction_info[2] for contraction_info in path_info.contraction_list]
+    partial_eqns = [
+        contraction_info[2] for contraction_info in path_info.contraction_list
+    ]
 
     # create a dict of the input tensors by their label in the einsum equation
     tensors = {}

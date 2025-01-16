@@ -3,9 +3,9 @@ from ..padding import DomainPadding
 import pytest
 
 
-@pytest.mark.parametrize('mode', ['one-sided', 'symmetric'])
+@pytest.mark.parametrize("mode", ["one-sided", "symmetric"])
 def test_DomainPadding(mode):
-    out_size = {'one-sided': 12, 'symmetric': 14}
+    out_size = {"one-sided": 12, "symmetric": 14}
     data = paddle.randn((2, 3, 10, 10))
     padder = DomainPadding(0.2, mode)
     padded = padder.pad(data)
